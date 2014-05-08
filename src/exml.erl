@@ -11,7 +11,8 @@
 -include("exml_stream.hrl").
 
 -export([parse/1]).
--export([to_list/1, to_binary/1, to_iolist/1,
+-export([xml_size/1,
+         to_list/1, to_binary/1, to_iolist/1,
          to_pretty_iolist/1, to_pretty_iolist/3]).
 -export([escape_attr/1, unescape_attr/1,
          escape_cdata/1, unescape_cdata/1, unescape_cdata_as/2]).
@@ -28,6 +29,25 @@ load() ->
                       Path
               end,
     erlang:load_nif(filename:join(PrivDir, "exml_escape"), none).
+
+-spec xml_size(xmlterm() | [xmlterm()]) -> integer().
+xml_size([]) ->
+    0;
+xml_size([Elem | Rest]) ->
+    xml_size(Elem) + xml_size(Rest);
+xml_size(#xmlcdata{ content = Content }) ->
+    iolist_size(Content);
+xml_size(#xmlel{ name = Name, attrs = Attrs, children = [] }) ->
+    3 % Self-closing: </>
+    + byte_size(Name) + xml_size(Attrs);
+xml_size(#xmlel{ name = Name, attrs = Attrs, children = Children }) ->
+    % Opening and closing: <></>
+    5 + byte_size(Name)*2
+    + xml_size(Attrs) + xml_size(Children);
+xml_size({Key, Value}) ->
+    byte_size(Key)
+    + 4 % ="" and whitespace before
+    + byte_size(Value).
 
 -spec to_list(#xmlstreamstart{} | #xmlstreamend{}
               | xmlterm()) -> string().
