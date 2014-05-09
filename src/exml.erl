@@ -30,7 +30,8 @@ load() ->
               end,
     erlang:load_nif(filename:join(PrivDir, "exml_escape"), none).
 
--spec xml_size(xmlterm() | [xmlterm()]) -> integer().
+-spec xml_size(#xmlstreamstart{} | #xmlstreamend{}
+	       | xmlterm() | [xmlterm()]) -> integer().
 xml_size([]) ->
     0;
 xml_size([Elem | Rest]) ->
@@ -44,6 +45,10 @@ xml_size(#xmlel{ name = Name, attrs = Attrs, children = Children }) ->
     % Opening and closing: <></>
     5 + byte_size(Name)*2
     + xml_size(Attrs) + xml_size(Children);
+xml_size(#xmlstreamstart{ name = Name, attrs = Attrs }) ->
+    byte_size(Name) + 2 + xml_size(Attrs);
+xml_size(#xmlstreamend{ name = Name }) ->
+    byte_size(Name) + 3;
 xml_size({Key, Value}) ->
     byte_size(Key)
     + 4 % ="" and whitespace before
