@@ -1,7 +1,6 @@
 -include("exml.hrl").
 
 -record(xmlstreamstart, {name :: binary(),
-                         attrs = [] :: [xmlattr()]}).
--record(xmlstreamend, {name :: binary()}).
+                         attrs = [] :: [exml:xmlattr()]}).
 
--type xmlstreamelement() :: #xmlel{} | #xmlstreamstart{} | #xmlstreamend{}.
+-record(xmlstreamend, {name :: binary()}).

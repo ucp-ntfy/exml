@@ -11,11 +11,29 @@
 -include("exml_stream.hrl").
 
 -export([parse/1]).
--export([to_list/1, to_binary/1, to_iolist/1,
+
+-export([to_list/1,
+         to_binary/1,
+         to_iolist/1,
          to_pretty_iolist/1, to_pretty_iolist/3]).
--export([escape_attr/1, unescape_attr/1,
-         escape_cdata/1, unescape_cdata/1, unescape_cdata_as/2]).
+
+-export([escape_attr/1,
+         unescape_attr/1,
+         escape_cdata/1,
+         unescape_cdata/1,
+         unescape_cdata_as/2]).
+
 -on_load(load/0).
+
+-export_type([xmlattr/0,
+              xmlcdata/0,
+              xmlel/0,
+              xmlterm/0]).
+
+-type xmlattr() :: {binary(), binary()}.
+-type xmlcdata() :: #xmlcdata{}.
+-type xmlel() :: #xmlel{}.
+-type xmlterm() :: xmlel() | xmlattr() | xmlcdata().
 
 -spec load() -> any().
 load() ->

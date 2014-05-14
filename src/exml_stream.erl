@@ -16,30 +16,30 @@
          reset_parser/1,
          free_parser/1]).
 
--export_type([parser/0]).
--export_type([parser_opt/0]).
+-export_type([xmlstreamstart/0,
+              xmlstreamend/0,
+              xmlstreamelement/0,
+              parser/0,
+              parser_opt/0]).
 
+-record(config, {infinite_stream :: boolean(),
+                 autoreset :: boolean()}).
+
+-record(parser, {event_parser :: exml_event:c_parser(),
+                 config :: parser_cfg(),
+                 stack = [] :: list()}).
+
+-type xmlstreamstart() :: #xmlstreamstart{}.
+-type xmlstreamend() :: #xmlstreamend{}.
+-type xmlstreamelement() :: exml:xmlel() | xmlstreamstart() | xmlstreamend().
+-type parser_cfg() :: #config{}.
+-type parser() :: #parser{}.
 %% infinite_stream - no distinct "stream start" or "stream end", only #xmlel{} will be returned
 %% autoreset - will reset expat after each parsed document
 %%             use only when complete xml document is sent to the parser
 %%             for example XMPP over WebSocekts - http://tools.ietf.org/html/draft-ietf-xmpp-websocket
 -type parser_property() :: infinite_stream | autoreset.
 -type parser_opt() :: {parser_property(), boolean()}.
-
--record(config, {
-    infinite_stream :: boolean(),
-    autoreset :: boolean()
-}).
-
--type parser_cfg() :: #config{}.
-
--record(parser, {
-          event_parser :: exml_event:c_parser(),
-          config :: parser_cfg(),
-          stack = [] :: list()
-         }).
-
--type parser() :: #parser{}.
 
 %%%===================================================================
 %%% Public API
