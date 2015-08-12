@@ -52,14 +52,15 @@ new_parser() ->
 new_parser(Opts)->
     try
         {ok, EventParser} = exml_event:new_parser(),
-        {ok, #parser{event_parser = EventParser,
-                     config = #config{
-                                 infinite_stream = proplists:get_value(infinite_stream, Opts, false),
-                                 autoreset = proplists:get_value(autoreset, Opts, false)}
-                    }}
+        {ok, #parser{
+            event_parser = EventParser,
+            config = #config{
+                        infinite_stream = bool_opt
+                                            (infinite_stream, Opts, false),
+                        autoreset = bool_opt
+                                      (autoreset, Opts, false)}}}
     catch
-        E:R ->
-            {error, {E, R}}
+        E:R -> {error, {E, R}}
     end.
 
 -spec parse(parser(), binary()) ->
@@ -122,8 +123,10 @@ parse_events([{xml_element_end, _Name} | Rest], [Element, Parent | Stack], Acc, 
     parse_events(Rest, [NewParent | Stack], Acc, InfiniteStream);
 parse_events([{xml_cdata, _CData} | Rest], [Top], Acc, false) ->
     parse_events(Rest, [Top], Acc, false);
-parse_events([{xml_cdata, _CData} | Rest], [], Acc, true) ->
-    parse_events(Rest, [], Acc, true);
+%% This is likely unreachable code.
+%% If you need this clause, please provide a test case that covers it.
+%% parse_events([{xml_cdata, _CData} | Rest], [], Acc, true) ->
+%%     parse_events(Rest, [], Acc, true);
 parse_events([{xml_cdata, CData} | Rest],
              [#xmlel{children = [#xmlcdata{content = Content} | RestChildren]} = XML | Stack],
              Acc, InfiniteStream) ->
@@ -135,15 +138,7 @@ parse_events([{xml_cdata, CData} | Rest], [Element | Stack], Acc, InfiniteStream
 
 -spec xml_element(#xmlel{}) -> #xmlel{}.
 xml_element(#xmlel{children = Children} = Element) ->
-    Element#xmlel{children = xml_children(Children, [])}.
-
--spec xml_children(list(xmlterm()), list(xmlterm())) -> list(xmlterm()).
-xml_children([], Children) ->
-    Children;
-xml_children([#xmlcdata{content = Content1}, #xmlcdata{content = Content2} | Rest], Children) ->
-    xml_children([#xmlcdata{content = list_to_binary([Content2, Content1])} | Rest], Children);
-xml_children([Element | Rest], Children) ->
-    xml_children(Rest, [Element | Children]).
+    Element#xmlel{children = lists:reverse(Children)}.
 
 -spec nss_to_fake_attrs([{binary(), binary() | none}], [{binary(), binary()}]) ->
         [{binary(), binary()}].
@@ -153,3 +148,12 @@ nss_to_fake_attrs([{Uri, Prefix} | Rest], Acc) ->
     nss_to_fake_attrs(Rest, [{<<"xmlns:", Prefix/binary>>, Uri} | Acc]);
 nss_to_fake_attrs([], Acc) ->
     Acc. %% no lists:reverse, as we got the argument list in reversed order
+
+
+-spec bool_opt(parser_opt(), [parser_opt()], boolean()) -> boolean().
+bool_opt(Val, Opts, Default) ->
+    Got = proplists:get_value(infinite_stream, Opts, Default),
+    case is_boolean(Got) of
+        true -> Got;
+        false -> error({invalid_parser_opt, {Val, Got}})
+    end.

@@ -5,6 +5,12 @@
 
 -compile(export_all).
 
+
+parser_error_test() ->
+    ?assertEqual({error, {error, {invalid_parser_opt,
+                                  {infinite_stream, infinity}}}},
+                 exml_stream:new_parser([{infinite_stream, infinity}])).
+
 basic_parse_test() ->
     {ok, Parser0} = exml_stream:new_parser(),
     {ok, Parser1, Empty0} =
@@ -98,7 +104,8 @@ infinit_framed_stream_test() ->
 parse_error_test() ->
     {ok, Parser0} = exml_stream:new_parser(),
     Input = <<"top-level non-tag">>,
-    ?assertEqual({error, {"syntax error", Input}}, exml_stream:parse(Parser0, Input)),
+    ?assertEqual({error, {"syntax error", Input}},
+                 exml_stream:parse(Parser0, Input)),
     ok = exml_stream:free_parser(Parser0).
 
 assert_parses_escape_cdata(Text) ->
@@ -114,6 +121,32 @@ assert_parses_escape_cdata(Text) ->
     [_, #xmlel{children=[CData]}, _] = Elements,
     ?assertEqual(Text, exml:unescape_cdata(CData)),
     ok = exml_stream:free_parser(Parser1).
+
+reset_parser_error_test() ->
+    {ok, _P} = exml_stream:new_parser(),
+    BadParser = {parser, foo, bar, baz},
+    ?assertEqual({error, {error, badarg}},
+                 exml_stream:reset_parser(BadParser)).
+
+cdata_is_ignored_when_first_child_of_stream_test() ->
+    {ok, P} = exml_stream:new_parser(),
+    {ok, _, Elements} =
+        exml_stream:parse(P, <<"<stream>hello</stream>">>),
+    ?assertMatch([#xmlstreamstart{name = <<"stream">>},
+                  #xmlstreamend{name = <<"stream">>}],
+                 Elements).
+
+multiple_cdata_are_joined_test() ->
+    {ok, P} = exml_stream:new_parser([{infinite_stream, false},
+                                      {autoreset, true}]),
+    {ok, P1, _} =
+        exml_stream:parse(P, <<"<s><a><![CDATA[hello]]>">>),
+    {ok, P2, E1} =
+        exml_stream:parse(P1, <<", world</a>">>),
+    {ok, _,  _} =
+        exml_stream:parse(P2, <<"</s>">>),
+    #xmlel{children=[CData]} = hd(E1),
+    ?assertEqual(<<"hello, world">>, exml:unescape_cdata(CData)).
 
 cdata_test() ->
     assert_parses_escape_cdata(<<"I am a banana!">>),
@@ -137,4 +170,3 @@ conv_attr_test() ->
     AssertParses(exml:to_binary(Elements)),
     AssertParses(list_to_binary(exml:to_list(Elements))),
     AssertParses(list_to_binary(exml:to_iolist(Elements))).
-
