@@ -152,7 +152,7 @@ nss_to_fake_attrs([], Acc) ->
 
 -spec bool_opt(parser_opt(), [parser_opt()], boolean()) -> boolean().
 bool_opt(Val, Opts, Default) ->
-    Got = proplists:get_value(infinite_stream, Opts, Default),
+    Got = proplists:get_value(Val, Opts, Default),
     case is_boolean(Got) of
         true -> Got;
         false -> error({invalid_parser_opt, {Val, Got}})

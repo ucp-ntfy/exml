@@ -6,10 +6,15 @@
 -compile(export_all).
 
 
-parser_error_test() ->
+parser_error_bad_stream_opt_test() ->
     ?assertEqual({error, {error, {invalid_parser_opt,
                                   {infinite_stream, infinity}}}},
                  exml_stream:new_parser([{infinite_stream, infinity}])).
+
+parser_error_bad_autoreset_opt_test() ->
+    ?assertEqual({error, {error, {invalid_parser_opt,
+                                  {autoreset, kielbasa}}}},
+                 exml_stream:new_parser([{autoreset, kielbasa}])).
 
 basic_parse_test() ->
     {ok, Parser0} = exml_stream:new_parser(),
