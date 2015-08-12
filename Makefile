@@ -21,11 +21,18 @@ deps: rebar
 clean: rebar
 	./rebar clean
 
-test: compile
-	./rebar skip_deps=true eunit
+test-deps: rebar
+	./rebar -C rebar.test.config get-deps
+
+test-compile: rebar test-deps
+	./rebar -C rebar.test.config compile
+
+test: test-compile
+	./rebar -C rebar.test.config skip_deps=true eunit
 
 rebar:
-	wget https://github.com/rebar/rebar/releases/download/2.5.1/rebar && chmod u+x rebar
+	wget https://github.com/rebar/rebar/releases/download/2.5.1/rebar &&\
+	chmod u+x rebar
 
 dialyzer/erlang.plt:
 	@mkdir -p dialyzer

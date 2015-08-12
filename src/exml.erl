@@ -54,9 +54,7 @@ to_iolist(#xmlstreamstart{name = Name, attrs = Attrs}) ->
 to_iolist(#xmlstreamend{name = Name}) ->
     ["</", Name, ">"];
 to_iolist(#xmlcdata{content = Content}) ->
-    %% it's caller's responsibility to make sure that
-    %% #xmlcdata's content is escaped properly!
-    [Content]. %% ensure we return io*list*
+    [escape_cdata_nif(Content)]. %% ensure we return io*list*
 
 -spec to_pretty_iolist(#xmlstreamstart{} | #xmlstreamend{}
                        | xmlterm()) -> iolist().
