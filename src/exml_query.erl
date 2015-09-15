@@ -47,8 +47,8 @@ paths(#xmlel{} = Element, [cdata]) ->
     [cdata(Element)];
 paths(#xmlel{attrs = Attrs}, [{attr, Name}]) ->
     lists:sublist([V || {N, V} <- Attrs, N =:= Name], 1);
-paths(#xmlel{}, Path) when is_list(Path) ->
-    [].
+paths(#xmlel{} = El, Path) when is_list(Path) ->
+    erlang:error(invalid_path, [El, Path]).
 
 -spec subelement(#xmlel{}, binary()) -> #xmlel{} | undefined.
 subelement(Element, Name) ->

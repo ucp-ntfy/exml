@@ -100,7 +100,8 @@ paths_query_test() ->
                  exml_query:paths(?HTML, [{element, <<"li">>},
                                           {element, <<"ul">>},
                                           {element, <<"span">>},
-                                          {attr, <<"class">>}])).
+                                          {attr, <<"class">>}])),
+    ?assertError(invalid_path, exml_query:paths(?HTML, [{attr, <<"li">>}, cdata])).
 
 %%--------------------------------------------------------------------
 %% helpers
