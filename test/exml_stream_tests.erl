@@ -51,6 +51,13 @@ basic_parse_test() ->
     ?assertEqual(<<"This is some CData">>, exml:unescape_cdata(CData)),
     ?assertEqual(ok, exml_stream:free_parser(Parser6)).
 
+parser_errors_test() ->
+    ?assertMatch({error, _}, exml:parse(<<"<notclosed_element>">>)),
+    %% it is the special case, because we are wrapping binary in the following way
+    %% Stream = <<"<stream>", XML/binary, "</stream>">>,
+    %% to make it a non-blocking call(?)
+    ?assertMatch({error, {bad_parse, _}}, exml:parse(<<"<stream>">>)).
+
 -define(BANANA_STREAM, <<"<stream:stream xmlns:stream='something'><foo attr='bar'>I am a banana!<baz/></foo></stream:stream>">>).
 -define(assertIsBanana(Elements), (fun() -> % fun instead of begin/end because we bind CData in unhygenic macro
                                            ?assertMatch([#xmlstreamstart{name = <<"stream:stream">>,
