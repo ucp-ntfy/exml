@@ -23,7 +23,8 @@
 %% autoreset - will reset expat after each parsed document
 %%             use only when complete xml document is sent to the parser
 %%             for example XMPP over WebSocekts - http://tools.ietf.org/html/draft-ietf-xmpp-websocket
--type parser_opt() :: {infinite_stream, boolean()} | {autoreset, boolean()}.
+-type parser_property() :: infinite_stream | autoreset.
+-type parser_opt() :: {parser_property(), boolean()}.
 
 -record(config, {
     infinite_stream :: boolean(),
@@ -55,10 +56,8 @@ new_parser(Opts)->
         {ok, #parser{
             event_parser = EventParser,
             config = #config{
-                        infinite_stream = bool_opt
-                                            (infinite_stream, Opts, false),
-                        autoreset = bool_opt
-                                      (autoreset, Opts, false)}}}
+                        infinite_stream = bool_opt(infinite_stream, Opts, false),
+                        autoreset = bool_opt(autoreset, Opts, false)}}}
     catch
         E:R -> {error, {E, R}}
     end.
@@ -150,7 +149,7 @@ nss_to_fake_attrs([], Acc) ->
     Acc. %% no lists:reverse, as we got the argument list in reversed order
 
 
--spec bool_opt(parser_opt(), [parser_opt()], boolean()) -> boolean().
+-spec bool_opt(parser_property(), [parser_opt()], boolean()) -> boolean().
 bool_opt(Val, Opts, Default) ->
     Got = proplists:get_value(Val, Opts, Default),
     case is_boolean(Got) of
