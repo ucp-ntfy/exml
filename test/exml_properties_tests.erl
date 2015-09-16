@@ -25,6 +25,11 @@ inverse_test() ->
       ?FORALL(Doc, utf8_doc(),
               ok == element(1, exml:parse(exml:to_binary(parse(Doc)))))).
 
+size_test() ->
+    p("exml:size equals actual size of output xml string",
+      ?FORALL(Doc, utf8_doc(),
+              iolist_size(exml:to_binary(parse(Doc))) == exml:xml_size(parse(Doc)))).
+
 is_parseable(Doc) ->
     case exml:parse(Doc) of
         {ok, _} -> true;

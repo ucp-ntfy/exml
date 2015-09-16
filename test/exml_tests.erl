@@ -16,3 +16,22 @@
 application_test() ->
     ?assertEqual(ok, application:start(exml)),
     ?assertEqual(ok, application:stop(exml)).
+
+size_of_normal_xml_test() ->
+    Raw = <<"<a attr=\"urn:test:0\"><b>grzegrzółka</b><c>&amp;</c></a>"/utf8>>,
+    ?assertEqual(iolist_size(Raw), exml:xml_size(parse(Raw))).
+
+size_of_escaped_characters_test() ->
+    Raw = <<"<a>&amp;</a>">>,
+    ?assertEqual(iolist_size(Raw), exml:xml_size(parse(Raw))).
+
+size_of_exml_with_cdata_test() ->
+    Raw = <<"<a><![CDATA[ Within this Character Data block I can
+            use double dashes as much as I want (along with <, &, ', and \")]]></a>">>,
+    ?assertEqual(iolist_size(exml:to_binary(parse(Raw))), exml:xml_size(parse(Raw))).
+
+parse(Doc) ->
+    case exml:parse(Doc) of
+        {ok, X} -> X;
+        {error, E} -> throw(E)
+    end.
