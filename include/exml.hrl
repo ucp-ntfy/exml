@@ -4,7 +4,7 @@
 -record(xmlcdata, {content = [] :: iodata()}).
 
 -record(xmlel, {name :: binary(),
-                attrs = [] :: [exml:xmlattr()],
-                children =  [] :: [exml:xmlel() | exml:xmlcdata()]}).
+                attrs = [] :: [exml:attr()],
+                children =  [] :: [exml:element() | exml:cdata()]}).
 
 -endif.

@@ -26,15 +26,15 @@
 
 -on_load(load/0).
 
--export_type([xmlattr/0,
-              xmlcdata/0,
-              xmlel/0,
-              xmlterm/0]).
+-export_type([attr/0,
+              cdata/0,
+              element/0,
+              item/0]).
 
--type xmlattr() :: {binary(), binary()}.
--type xmlcdata() :: #xmlcdata{}.
--type xmlel() :: #xmlel{}.
--type xmlterm() :: xmlel() | xmlattr() | xmlcdata().
+-type attr() :: {binary(), binary()}.
+-type cdata() :: #xmlcdata{}.
+-type element() :: #xmlel{}.
+-type item() :: element() | attr() | cdata(). %% node is builtin type ;(
 
 -spec load() -> any().
 load() ->
@@ -48,8 +48,8 @@ load() ->
               end,
     erlang:load_nif(filename:join(PrivDir, "exml_escape"), none).
 
--spec xml_size(exml_stream:xmlstreamstart() | exml_stream:xmlstreamend()
-	       | xmlterm() | [xmlterm()]) -> integer().
+-spec xml_size(exml_stream:start() | exml_stream:stop()
+	       | item() | [item()]) -> non_neg_integer().
 xml_size([]) ->
     0;
 xml_size([Elem | Rest]) ->
@@ -72,18 +72,18 @@ xml_size({Key, Value}) ->
     + 4 % ="" and whitespace before
     + byte_size(Value).
 
--spec to_list(exml_stream:xmlstreamstart() | exml_stream:xmlstreamend()
-              | xmlterm()) -> string().
+-spec to_list(exml_stream:start() | exml_stream:stop()
+              | item()) -> string().
 to_list(Element) ->
     binary_to_list(to_binary(Element)).
 
--spec to_binary(#xmlstreamstart{} | #xmlstreamend{}
-                | xmlterm() | [xmlterm()]) -> binary().
+-spec to_binary(exml_stream:start() | exml_stream:stop()
+                | item() | [item()]) -> binary().
 to_binary(Element) ->
     list_to_binary(to_iolist(Element)).
 
--spec to_iolist(exml_stream:xmlstreamstart() | exml_stream:xmlstreamend()
-                | xmlterm() | [xmlterm()]) -> iolist().
+-spec to_iolist(exml_stream:start() | exml_stream:stop()
+                | item() | [item()]) -> iolist().
 to_iolist(Elements) when is_list(Elements) ->
     lists:map(fun to_iolist/1, Elements);
 to_iolist(#xmlel{name = Name, attrs = Attrs, children = []}) ->
@@ -99,15 +99,15 @@ to_iolist(#xmlstreamend{name = Name}) ->
 to_iolist(#xmlcdata{content = Content}) ->
     [escape_cdata_nif(Content)]. %% ensure we return io*list*
 
--spec to_pretty_iolist(#xmlstreamstart{} | #xmlstreamend{}
-                       | xmlterm()) -> iolist().
+-spec to_pretty_iolist(exml_stream:start() | exml_stream:stop()
+                       | item()) -> iolist().
 to_pretty_iolist(Term) ->
     to_pretty_iolist(Term, 0, "  ").
 
 %% `to_pretty_iolist/3' is generic enough to express `to_iolist/1'
 %% by passing an empty string as `Indent', but that would be less efficient,
 %% so let's leave the implementations separate.
--spec to_pretty_iolist(#xmlstreamstart{} | #xmlstreamend{} | xmlterm(),
+-spec to_pretty_iolist(exml_stream:start() | exml_stream:stop() | item(),
                        non_neg_integer(), string()) -> iolist().
 to_pretty_iolist(#xmlel{name = Name, attrs = Attrs, children = []},
                  Level, Indent) ->
@@ -135,13 +135,13 @@ to_pretty_iolist(#xmlcdata{content = Content}, Level, Indent) ->
     Shift = lists:duplicate(Level, Indent),
     [Shift, Content, "\n"].
 
--spec attrs_to_iolist([{binary(), binary()}], iolist()) -> iolist().
+-spec attrs_to_iolist([attr()], iolist()) -> iolist().
 attrs_to_iolist([], Acc) ->
     Acc;
 attrs_to_iolist([{Name, Value} | Rest], Acc) ->
     attrs_to_iolist(Rest, [" ", Name, "='", escape_attr(Value), "'" | Acc]).
 
--spec parse(binary()) -> {ok, #xmlel{}} | {error, any()}.
+-spec parse(binary()) -> {ok, exml:element()} | {error, any()}.
 parse(XML) ->
     {ok, Parser} = exml_stream:new_parser(),
     Stream = <<"<stream>", XML/binary, "</stream>">>,
@@ -156,15 +156,15 @@ parse(XML) ->
     ok = exml_stream:free_parser(Parser),
     Result.
 
--spec escape_cdata(iodata()) -> #xmlcdata{}.
+-spec escape_cdata(iodata()) -> cdata().
 escape_cdata(Content) ->
     #xmlcdata{content = escape_cdata_nif(Content)}.
 
--spec unescape_cdata(#xmlcdata{}) -> binary().
+-spec unescape_cdata(cdata()) -> binary().
 unescape_cdata(#xmlcdata{content = Content}) ->
     unescape_cdata_nif(Content).
 
--spec unescape_cdata_as(binary|list|iodata, #xmlcdata{}) -> binary().
+-spec unescape_cdata_as(binary|list|iodata, cdata()) -> binary().
 unescape_cdata_as(What, CData) ->
     unescape_cdata_as_erl(What, CData).
 
@@ -176,7 +176,7 @@ escape_cdata_nif(_Data) ->
 unescape_cdata_nif(_Data) ->
     erlang:nif_error({?MODULE, nif_not_loaded}).
 
--spec unescape_cdata_as_erl(binary|list|iodata, #xmlcdata{}) -> binary().
+-spec unescape_cdata_as_erl(binary|list|iodata, cdata()) -> binary().
 unescape_cdata_as_erl(What, #xmlcdata{content=GtEsc}) ->
     LtEsc  = re:replace(GtEsc,  "&gt;",  ">",   [global]),
     AmpEsc = re:replace(LtEsc,  "&lt;",  "<",   [global]),

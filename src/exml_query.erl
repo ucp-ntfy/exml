@@ -18,12 +18,12 @@
 -export_type([path/0]).
 
 %% @doc gets the element/attr/cdata contained in the leftmost path
--spec path(#xmlel{}, path()) -> #xmlel{} | binary() | undefined.
+-spec path(exml:element(), path()) -> exml:element() | binary() | undefined.
 path(Element, Path) ->
     path(Element, Path, undefined).
 
 %% @doc gets the element/attr/cdata in the leftmost possible described path
--spec path(#xmlel{}, path(), Other) -> #xmlel{} | binary() | Other.
+-spec path(exml:element(), path(), Other) -> exml:element() | binary() | Other.
 path(#xmlel{} = Element, [], _) ->
     Element;
 path(#xmlel{} = Element, [{element, Name} | Rest], Default) ->
@@ -37,7 +37,7 @@ path(_, _, Default) ->
     Default.
 
 %% @doc gets the elements/attrs/cdatas reachable by the described path
--spec paths(#xmlel{}, path()) -> [#xmlel{} | binary()].
+-spec paths(exml:element(), path()) -> [exml:element() | binary()].
 paths(#xmlel{} = Element, []) ->
     [Element];
 paths(#xmlel{} = Element, [{element, Name} | Rest]) ->
@@ -50,11 +50,11 @@ paths(#xmlel{attrs = Attrs}, [{attr, Name}]) ->
 paths(#xmlel{} = El, Path) when is_list(Path) ->
     erlang:error(invalid_path, [El, Path]).
 
--spec subelement(#xmlel{}, binary()) -> #xmlel{} | undefined.
+-spec subelement(exml:element(), binary()) -> exml:element() | undefined.
 subelement(Element, Name) ->
     subelement(Element, Name, undefined).
 
--spec subelement(#xmlel{}, binary(), Other) -> #xmlel{} | Other.
+-spec subelement(exml:element(), binary(), Other) -> exml:element() | Other.
 subelement(#xmlel{children = Children}, Name, Default) ->
     case lists:keyfind(Name, #xmlel.name, Children) of
         false ->
@@ -63,7 +63,7 @@ subelement(#xmlel{children = Children}, Name, Default) ->
             Result
     end.
 
--spec subelements(#xmlel{}, binary()) -> [#xmlel{}].
+-spec subelements(exml:element(), binary()) -> [exml:element()].
 subelements(#xmlel{children = Children}, Name) ->
     lists:filter(fun(#xmlel{name = N}) when N =:= Name ->
                         true;
@@ -71,15 +71,15 @@ subelements(#xmlel{children = Children}, Name) ->
                         false
                  end, Children).
 
--spec cdata(#xmlel{}) -> binary().
+-spec cdata(exml:element()) -> binary().
 cdata(#xmlel{children = Children}) ->
     list_to_binary([exml:unescape_cdata(C) || #xmlcdata{} = C <- Children]).
 
--spec attr(#xmlel{}, binary()) -> binary() | undefined.
+-spec attr(exml:element(), binary()) -> binary() | undefined.
 attr(Element, Name) ->
     attr(Element, Name, undefined).
 
--spec attr(#xmlel{}, binary(), Other) -> binary() | Other.
+-spec attr(exml:element(), binary(), Other) -> binary() | Other.
 attr(#xmlel{attrs = Attrs}, Name, Default) ->
     case lists:keyfind(Name, 1, Attrs) of
         {Name, Value} ->

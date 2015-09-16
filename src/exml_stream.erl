@@ -16,9 +16,9 @@
          reset_parser/1,
          free_parser/1]).
 
--export_type([xmlstreamstart/0,
-              xmlstreamend/0,
-              xmlstreamelement/0,
+-export_type([start/0,
+              stop/0,
+              element/0,
               parser/0,
               parser_opt/0]).
 
@@ -29,9 +29,9 @@
                  config :: parser_cfg(),
                  stack = [] :: list()}).
 
--type xmlstreamstart() :: #xmlstreamstart{}.
--type xmlstreamend() :: #xmlstreamend{}.
--type xmlstreamelement() :: exml:xmlel() | xmlstreamstart() | xmlstreamend().
+-type start() :: #xmlstreamstart{}.
+-type stop() :: #xmlstreamend{}.
+-type element() :: exml:element() | start() | stop().
 -type parser_cfg() :: #config{}.
 -type parser() :: #parser{}.
 %% infinite_stream - no distinct "stream start" or "stream end", only #xmlel{} will be returned
@@ -63,7 +63,7 @@ new_parser(Opts)->
     end.
 
 -spec parse(parser(), binary()) ->
-        {ok, parser(), [xmlstreamelement()]} | {error, {string(), binary()}}.
+        {ok, parser(), [exml_stream:element()]} | {error, {string(), binary()}}.
 parse(#parser{event_parser = EventParser, stack = OldStack, config = Config} = Parser, Input) ->
     case exml_event:parse(EventParser, Input) of
         {ok, Events} ->
@@ -100,7 +100,7 @@ free_parser(#parser{event_parser = EventParser}) ->
 %%% Helpers
 %%%===================================================================
 
--spec parse_events(list(), list(), list(), boolean()) -> {list(xmlstreamelement()), list()}.
+-spec parse_events(list(), list(), list(), boolean()) -> {list(exml_stream:element()), list()}.
 parse_events([], Stack, Acc, _InfiniteStream) ->
     {lists:reverse(Acc), Stack};
 parse_events([{xml_element_start, Name, NSs, Attrs} | Rest], [], Acc, false) ->
@@ -135,12 +135,12 @@ parse_events([{xml_cdata, CData} | Rest], [Element | Stack], Acc, InfiniteStream
     NewChildren = [#xmlcdata{content = CData} | Element#xmlel.children],
     parse_events(Rest, [Element#xmlel{children = NewChildren} | Stack], Acc, InfiniteStream).
 
--spec xml_element(#xmlel{}) -> #xmlel{}.
+-spec xml_element(exml:element()) -> exml:element().
 xml_element(#xmlel{children = Children} = Element) ->
     Element#xmlel{children = lists:reverse(Children)}.
 
--spec nss_to_fake_attrs([{binary(), binary() | none}], [{binary(), binary()}]) ->
-        [{binary(), binary()}].
+-spec nss_to_fake_attrs([{binary(), binary() | none}], [exml:attr()]) ->
+        [exml:attr()].
 nss_to_fake_attrs([{Uri, none} | Rest], Acc) ->
     nss_to_fake_attrs(Rest, [{<<"xmlns">>, Uri} | Acc]);
 nss_to_fake_attrs([{Uri, Prefix} | Rest], Acc) ->
