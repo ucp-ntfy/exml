@@ -15,6 +15,7 @@
 -export([to_list/1,
          to_binary/1,
          to_iolist/1,
+         xml_size/1,
          to_pretty_iolist/1, to_pretty_iolist/3]).
 
 -export([escape_attr/1,
@@ -47,7 +48,31 @@ load() ->
               end,
     erlang:load_nif(filename:join(PrivDir, "exml_escape"), none).
 
--spec to_list(#xmlstreamstart{} | #xmlstreamend{}
+-spec xml_size(exml_stream:xmlstreamstart() | exml_stream:xmlstreamend()
+	       | xmlterm() | [xmlterm()]) -> integer().
+xml_size([]) ->
+    0;
+xml_size([Elem | Rest]) ->
+    xml_size(Elem) + xml_size(Rest);
+xml_size(#xmlcdata{ content = Content }) ->
+    iolist_size(escape_cdata_nif(Content));
+xml_size(#xmlel{ name = Name, attrs = Attrs, children = [] }) ->
+    3 % Self-closing: </>
+    + byte_size(Name) + xml_size(Attrs);
+xml_size(#xmlel{ name = Name, attrs = Attrs, children = Children }) ->
+    % Opening and closing: <></>
+    5 + byte_size(Name)*2
+    + xml_size(Attrs) + xml_size(Children);
+xml_size(#xmlstreamstart{ name = Name, attrs = Attrs }) ->
+    byte_size(Name) + 2 + xml_size(Attrs);
+xml_size(#xmlstreamend{ name = Name }) ->
+    byte_size(Name) + 3;
+xml_size({Key, Value}) ->
+    byte_size(Key)
+    + 4 % ="" and whitespace before
+    + byte_size(Value).
+
+-spec to_list(exml_stream:xmlstreamstart() | exml_stream:xmlstreamend()
               | xmlterm()) -> string().
 to_list(Element) ->
     binary_to_list(to_binary(Element)).
@@ -57,7 +82,7 @@ to_list(Element) ->
 to_binary(Element) ->
     list_to_binary(to_iolist(Element)).
 
--spec to_iolist(#xmlstreamstart{} | #xmlstreamend{}
+-spec to_iolist(exml_stream:xmlstreamstart() | exml_stream:xmlstreamend()
                 | xmlterm() | [xmlterm()]) -> iolist().
 to_iolist(Elements) when is_list(Elements) ->
     lists:map(fun to_iolist/1, Elements);
