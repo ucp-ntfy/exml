@@ -87,13 +87,13 @@ to_binary(Element) ->
 to_iolist(Elements) when is_list(Elements) ->
     lists:map(fun to_iolist/1, Elements);
 to_iolist(#xmlel{name = Name, attrs = Attrs, children = []}) ->
-    ["<", Name, attrs_to_iolist(Attrs, []), "/>"];
+    ["<", Name, attrs_to_iolist(Attrs), "/>"];
 to_iolist(#xmlel{name = Name, attrs = Attrs, children = Children}) ->
-    ["<", Name, attrs_to_iolist(Attrs, []), ">",
+    ["<", Name, attrs_to_iolist(Attrs), ">",
      to_iolist(Children),
      "</", Name, ">"];
 to_iolist(#xmlstreamstart{name = Name, attrs = Attrs}) ->
-    ["<", Name, attrs_to_iolist(Attrs, []), ">"];
+    ["<", Name, attrs_to_iolist(Attrs), ">"];
 to_iolist(#xmlstreamend{name = Name}) ->
     ["</", Name, ">"];
 to_iolist(#xmlcdata{content = Content}) ->
@@ -112,22 +112,22 @@ to_pretty_iolist(Term) ->
 to_pretty_iolist(#xmlel{name = Name, attrs = Attrs, children = []},
                  Level, Indent) ->
     Shift = lists:duplicate(Level, Indent),
-    [Shift, "<", Name, attrs_to_iolist(Attrs, []), "/>\n"];
+    [Shift, "<", Name, attrs_to_iolist(Attrs), "/>\n"];
 to_pretty_iolist(#xmlel{name = Name, attrs = Attrs,
                         children = [#xmlcdata{content = Content}]},
                  Level, Indent) ->
     Shift = lists:duplicate(Level, Indent),
-    [Shift, "<", Name, attrs_to_iolist(Attrs, []), ">",
+    [Shift, "<", Name, attrs_to_iolist(Attrs), ">",
      Content, "</", Name, ">\n"];
 to_pretty_iolist(#xmlel{name = Name, attrs = Attrs, children = Children},
                  Level, Indent) ->
     Shift = lists:duplicate(Level, Indent),
-    [Shift, "<", Name, attrs_to_iolist(Attrs, []), ">\n",
+    [Shift, "<", Name, attrs_to_iolist(Attrs), ">\n",
      [to_pretty_iolist(C, Level+1, Indent) || C <- Children],
      Shift, "</", Name, ">\n"];
 to_pretty_iolist(#xmlstreamstart{name = Name, attrs = Attrs}, Level, Indent) ->
     Shift = lists:duplicate(Level, Indent),
-    [Shift, "<", Name, attrs_to_iolist(Attrs, []), ">\n"];
+    [Shift, "<", Name, attrs_to_iolist(Attrs), ">\n"];
 to_pretty_iolist(#xmlstreamend{name = Name}, Level, Indent) ->
     Shift = lists:duplicate(Level, Indent),
     [Shift, "</", Name, ">\n"];
@@ -135,11 +135,11 @@ to_pretty_iolist(#xmlcdata{content = Content}, Level, Indent) ->
     Shift = lists:duplicate(Level, Indent),
     [Shift, Content, "\n"].
 
--spec attrs_to_iolist([attr()], iolist()) -> iolist().
-attrs_to_iolist([], Acc) ->
-    Acc;
-attrs_to_iolist([{Name, Value} | Rest], Acc) ->
-    attrs_to_iolist(Rest, [" ", Name, "='", escape_attr(Value), "'" | Acc]).
+-spec attrs_to_iolist([attr()]) -> iolist().
+attrs_to_iolist(Attrs) ->
+    lists:map(fun({Name, Value}) ->
+                      [" ", Name, "='", escape_attr(Value), "'"]
+              end, Attrs).
 
 -spec parse(binary()) -> {ok, exml:element()} | {error, any()}.
 parse(XML) ->
