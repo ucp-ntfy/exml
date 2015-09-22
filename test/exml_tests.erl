@@ -10,6 +10,7 @@
 -module(exml_tests).
 
 -include_lib("eunit/include/eunit.hrl").
+-include_lib("exml/include/exml.hrl").
 
 -compile(export_all).
 
@@ -29,6 +30,10 @@ size_of_exml_with_cdata_test() ->
     Raw = <<"<a><![CDATA[ Within this Character Data block I can
             use double dashes as much as I want (along with <, &, ', and \")]]></a>">>,
     ?assertEqual(iolist_size(exml:to_binary(parse(Raw))), exml:xml_size(parse(Raw))).
+
+throws_error_when_record_is_invalid_test() ->
+    BadExml = #xmlel{name = <<"pp">>, attrs = 1},
+    ?assertError({badxml, BadExml, _}, exml:to_binary(BadExml)).
 
 parse(Doc) ->
     case exml:parse(Doc) of

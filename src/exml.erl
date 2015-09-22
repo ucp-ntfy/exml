@@ -80,7 +80,10 @@ to_list(Element) ->
 -spec to_binary(exml_stream:start() | exml_stream:stop()
                 | item() | [item()]) -> binary().
 to_binary(Element) ->
-    list_to_binary(to_iolist(Element)).
+    case catch list_to_binary(to_iolist(Element)) of
+        {'EXIT', Reason} -> erlang:error({badxml, Element, Reason});
+        Reasult -> Reasult
+    end.
 
 -spec to_iolist(exml_stream:start() | exml_stream:stop()
                 | item() | [item()]) -> iolist().
