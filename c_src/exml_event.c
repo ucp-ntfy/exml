@@ -28,8 +28,9 @@ static ERL_NIF_TERM encode_name(expat_parser *parser_data, const XML_Char *name)
                 }
         } else
         {
-            unsigned char* data = enif_make_new_binary(parser_data->env, strlen(name), &encoded);
-            strcpy((char*)data, name);
+            size_t name_len = strlen(name);
+            unsigned char* data = enif_make_new_binary(parser_data->env, name_len, &encoded);
+            strncpy((char*)data, name, name_len);
         };
 
     return encoded;
@@ -47,8 +48,9 @@ static void *start_element_handler(expat_parser *parser_data, const XML_Char *na
         {
             ERL_NIF_TERM attr_name, attr_value;
 
-            unsigned char *attr_data = enif_make_new_binary(parser_data->env, strlen(atts[i-1]), &attr_value);
-            strcpy((char*)attr_data, (const char *)atts[i-1]);
+            size_t atts_len = strlen(atts[i-1]);
+            unsigned char *attr_data = enif_make_new_binary(parser_data->env, atts_len, &attr_value);
+            strncpy((char*)attr_data, (const char *)atts[i-1], atts_len);
             attr_name = encode_name(parser_data, atts[i-2]);
 
             ERL_NIF_TERM attr = enif_make_tuple(parser_data->env, 2, attr_name, attr_value);
@@ -104,15 +106,17 @@ static void *namespace_decl_handler(expat_parser *parser_data, const XML_Char *p
 
     if(prefix)
         {
-            unsigned char *ns_prefix_data = enif_make_new_binary(parser_data->env, strlen(prefix), &ns_prefix_bin);
-            strcpy((char*)ns_prefix_data, (const char *)prefix);
+            size_t prefix_len = strlen(prefix);
+            unsigned char *ns_prefix_data = enif_make_new_binary(parser_data->env, prefix_len, &ns_prefix_bin);
+            strncpy((char*)ns_prefix_data, (const char *)prefix, prefix_len);
         } else
         {
             ns_prefix_bin = NONE;
         }
 
-    unsigned char *ns_uri_data = enif_make_new_binary(parser_data->env, strlen(uri), &ns_uri_bin);
-    strcpy((char*)ns_uri_data, uri);
+    size_t uri_len = strlen(uri);
+    unsigned char *ns_uri_data = enif_make_new_binary(parser_data->env, uri_len, &ns_uri_bin);
+    strncpy((char*)ns_uri_data, uri, uri_len);
 
     ns_pair = enif_make_tuple(parser_data->env, 2, ns_uri_bin, ns_prefix_bin);
     parser_data->xmlns = enif_make_list_cell(parser_data->env, ns_pair, parser_data->xmlns);
