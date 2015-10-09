@@ -61,7 +61,8 @@ static int match_tag(ErlNifBinary str, int index, char* tag, int len)
 
 static ERL_NIF_TERM escape_cdata(ErlNifEnv *env, int argc, const ERL_NIF_TERM argv[])
 {
-    ErlNifBinary input, output;
+    ErlNifBinary input;
+    ERL_NIF_TERM output;
     struct buf *rbuf;
     int i;
 
@@ -99,15 +100,16 @@ static ERL_NIF_TERM escape_cdata(ErlNifEnv *env, int argc, const ERL_NIF_TERM ar
         };
     };
 
-    enif_alloc_binary(rbuf->len, &output);
-    memcpy(output.data, rbuf->b, rbuf->len);
+    unsigned char* data = enif_make_new_binary(env, rbuf->len, &output);
+    memcpy(data, rbuf->b, rbuf->len);
     destroy_buf(env, rbuf);
-    return enif_make_binary(env, &output);
+    return output;
 }
 
 static ERL_NIF_TERM unescape_cdata(ErlNifEnv *env, int argc, const ERL_NIF_TERM argv[])
 {
-    ErlNifBinary input, output;
+    ErlNifBinary input;
+    ERL_NIF_TERM output;
     struct buf *rbuf;
     int i;
 
@@ -147,15 +149,16 @@ static ERL_NIF_TERM unescape_cdata(ErlNifEnv *env, int argc, const ERL_NIF_TERM 
         }
     }
 
-    enif_alloc_binary(rbuf->len, &output);
-    memcpy(output.data, rbuf->b, rbuf->len);
+    unsigned char *data = enif_make_new_binary(env, rbuf->len, &output);
+    memcpy(data, rbuf->b, rbuf->len);
     destroy_buf(env, rbuf);
-    return enif_make_binary(env, &output);
+    return output;
 }
 
 static ERL_NIF_TERM escape_attr(ErlNifEnv *env, int argc, const ERL_NIF_TERM argv[])
 {
-    ErlNifBinary input, output;
+    ErlNifBinary input;
+    ERL_NIF_TERM output;
     struct buf *rbuf;
     int i;
 
@@ -201,15 +204,16 @@ static ERL_NIF_TERM escape_attr(ErlNifEnv *env, int argc, const ERL_NIF_TERM arg
         };
     };
 
-    enif_alloc_binary(rbuf->len, &output);
-    memcpy(output.data, rbuf->b, rbuf->len);
+    unsigned char *data = enif_make_new_binary(env, rbuf->len, &output);
+    memcpy(data, rbuf->b, rbuf->len);
     destroy_buf(env, rbuf);
-    return enif_make_binary(env, &output);
+    return output;
 }
 
 static ERL_NIF_TERM unescape_attr(ErlNifEnv *env, int argc, const ERL_NIF_TERM argv[])
 {
-    ErlNifBinary input, output;
+    ErlNifBinary input;
+    ERL_NIF_TERM  output;
     struct buf *rbuf;
     int i;
 
@@ -257,10 +261,10 @@ static ERL_NIF_TERM unescape_attr(ErlNifEnv *env, int argc, const ERL_NIF_TERM a
         }
     }
 
-    enif_alloc_binary(rbuf->len, &output);
-    memcpy(output.data, rbuf->b, rbuf->len);
+    unsigned char* data = enif_make_new_binary(env, rbuf->len, &output);
+    memcpy((char*)data, rbuf->b, rbuf->len);
     destroy_buf(env, rbuf);
-    return enif_make_binary(env, &output);
+    return output;
 }
 
 static int load(ErlNifEnv* env, void **priv, ERL_NIF_TERM info)

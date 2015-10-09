@@ -16,29 +16,30 @@
          reset_parser/1,
          free_parser/1]).
 
--export_type([parser/0]).
--export_type([parser_opt/0]).
+-export_type([start/0,
+              stop/0,
+              element/0,
+              parser/0,
+              parser_opt/0]).
 
+-record(config, {infinite_stream :: boolean(),
+                 autoreset :: boolean()}).
+
+-record(parser, {event_parser :: exml_event:c_parser(),
+                 config :: parser_cfg(),
+                 stack = [] :: list()}).
+
+-type start() :: #xmlstreamstart{}.
+-type stop() :: #xmlstreamend{}.
+-type element() :: exml:element() | start() | stop().
+-type parser_cfg() :: #config{}.
+-type parser() :: #parser{}.
 %% infinite_stream - no distinct "stream start" or "stream end", only #xmlel{} will be returned
 %% autoreset - will reset expat after each parsed document
 %%             use only when complete xml document is sent to the parser
 %%             for example XMPP over WebSocekts - http://tools.ietf.org/html/draft-ietf-xmpp-websocket
--type parser_opt() :: {infinite_stream, boolean()} | {autoreset, boolean()}.
-
--record(config, {
-    infinite_stream :: boolean(),
-    autoreset :: boolean()
-}).
-
--type parser_cfg() :: #config{}.
-
--record(parser, {
-          event_parser :: exml_event:c_parser(),
-          config :: parser_cfg(),
-          stack = [] :: list()
-         }).
-
--type parser() :: #parser{}.
+-type parser_property() :: infinite_stream | autoreset.
+-type parser_opt() :: {parser_property(), boolean()}.
 
 %%%===================================================================
 %%% Public API
@@ -52,18 +53,17 @@ new_parser() ->
 new_parser(Opts)->
     try
         {ok, EventParser} = exml_event:new_parser(),
-        {ok, #parser{event_parser = EventParser,
-                     config = #config{
-                                 infinite_stream = proplists:get_value(infinite_stream, Opts, false),
-                                 autoreset = proplists:get_value(autoreset, Opts, false)}
-                    }}
+        {ok, #parser{
+            event_parser = EventParser,
+            config = #config{
+                        infinite_stream = bool_opt(infinite_stream, Opts, false),
+                        autoreset = bool_opt(autoreset, Opts, false)}}}
     catch
-        E:R ->
-            {error, {E, R}}
+        E:R -> {error, {E, R}}
     end.
 
 -spec parse(parser(), binary()) ->
-        {ok, parser(), [xmlstreamelement()]} | {error, {string(), binary()}}.
+        {ok, parser(), [exml_stream:element()]} | {error, {string(), binary()}}.
 parse(#parser{event_parser = EventParser, stack = OldStack, config = Config} = Parser, Input) ->
     case exml_event:parse(EventParser, Input) of
         {ok, Events} ->
@@ -100,7 +100,7 @@ free_parser(#parser{event_parser = EventParser}) ->
 %%% Helpers
 %%%===================================================================
 
--spec parse_events(list(), list(), list(), boolean()) -> {list(xmlstreamelement()), list()}.
+-spec parse_events(list(), list(), list(), boolean()) -> {list(exml_stream:element()), list()}.
 parse_events([], Stack, Acc, _InfiniteStream) ->
     {lists:reverse(Acc), Stack};
 parse_events([{xml_element_start, Name, NSs, Attrs} | Rest], [], Acc, false) ->
@@ -122,8 +122,10 @@ parse_events([{xml_element_end, _Name} | Rest], [Element, Parent | Stack], Acc, 
     parse_events(Rest, [NewParent | Stack], Acc, InfiniteStream);
 parse_events([{xml_cdata, _CData} | Rest], [Top], Acc, false) ->
     parse_events(Rest, [Top], Acc, false);
-parse_events([{xml_cdata, _CData} | Rest], [], Acc, true) ->
-    parse_events(Rest, [], Acc, true);
+%% This is likely unreachable code.
+%% If you need this clause, please provide a test case that covers it.
+%% parse_events([{xml_cdata, _CData} | Rest], [], Acc, true) ->
+%%     parse_events(Rest, [], Acc, true);
 parse_events([{xml_cdata, CData} | Rest],
              [#xmlel{children = [#xmlcdata{content = Content} | RestChildren]} = XML | Stack],
              Acc, InfiniteStream) ->
@@ -133,23 +135,24 @@ parse_events([{xml_cdata, CData} | Rest], [Element | Stack], Acc, InfiniteStream
     NewChildren = [#xmlcdata{content = CData} | Element#xmlel.children],
     parse_events(Rest, [Element#xmlel{children = NewChildren} | Stack], Acc, InfiniteStream).
 
--spec xml_element(#xmlel{}) -> #xmlel{}.
+-spec xml_element(exml:element()) -> exml:element().
 xml_element(#xmlel{children = Children} = Element) ->
-    Element#xmlel{children = xml_children(Children, [])}.
+    Element#xmlel{children = lists:reverse(Children)}.
 
--spec xml_children(list(xmlterm()), list(xmlterm())) -> list(xmlterm()).
-xml_children([], Children) ->
-    Children;
-xml_children([#xmlcdata{content = Content1}, #xmlcdata{content = Content2} | Rest], Children) ->
-    xml_children([#xmlcdata{content = list_to_binary([Content2, Content1])} | Rest], Children);
-xml_children([Element | Rest], Children) ->
-    xml_children(Rest, [Element | Children]).
-
--spec nss_to_fake_attrs([{binary(), binary() | none}], [{binary(), binary()}]) ->
-        [{binary(), binary()}].
+-spec nss_to_fake_attrs([{binary(), binary() | none}], [exml:attr()]) ->
+        [exml:attr()].
 nss_to_fake_attrs([{Uri, none} | Rest], Acc) ->
     nss_to_fake_attrs(Rest, [{<<"xmlns">>, Uri} | Acc]);
 nss_to_fake_attrs([{Uri, Prefix} | Rest], Acc) ->
     nss_to_fake_attrs(Rest, [{<<"xmlns:", Prefix/binary>>, Uri} | Acc]);
 nss_to_fake_attrs([], Acc) ->
     Acc. %% no lists:reverse, as we got the argument list in reversed order
+
+
+-spec bool_opt(parser_property(), [parser_opt()], boolean()) -> boolean().
+bool_opt(Val, Opts, Default) ->
+    Got = proplists:get_value(Val, Opts, Default),
+    case is_boolean(Got) of
+        true -> Got;
+        false -> error({invalid_parser_opt, {Val, Got}})
+    end.
