@@ -30,6 +30,9 @@ test-compile: rebar test-deps
 test: test-compile
 	./rebar -C rebar.test.config skip_deps=true eunit
 
+coverage-report: $(shell ls -1rt `find .eunit -type f -name \*.coverdata 2>/dev/null` | tail -n1)
+	erl -noshell -pa ebin deps/*/ebin -eval 'ecoveralls:travis_ci("$?"), init:stop()'
+
 rebar:
 	wget https://github.com/rebar/rebar/releases/download/2.5.1/rebar &&\
 	chmod u+x rebar
