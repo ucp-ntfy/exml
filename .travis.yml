@@ -16,3 +16,6 @@ script:
         - make && make dialyzer && make test
 after_script:
         - if [ -s dialyzer/error.log ]; then cat dialyzer/error.log; fi
+
+after_success:
+        - make coverage-report
