@@ -82,7 +82,8 @@ conv_test() ->
     Elements = AssertParses(?BANANA_STREAM),
     AssertParses(exml:to_binary(Elements)),
     AssertParses(list_to_binary(exml:to_list(Elements))),
-    AssertParses(list_to_binary(exml:to_iolist(Elements))).
+    AssertParses(list_to_binary(exml:to_iolist(Elements))),
+    AssertParses(list_to_binary(re:replace(exml:to_pretty_iolist(Elements), "\n\s*", "", [global]))).
 
 stream_reopen_test() ->
     {ok, Parser0} = exml_stream:new_parser(),
@@ -181,4 +182,5 @@ conv_attr_test() ->
     Elements = AssertParses(?ATTR_TEST_STREAM),
     AssertParses(exml:to_binary(Elements)),
     AssertParses(list_to_binary(exml:to_list(Elements))),
-    AssertParses(list_to_binary(exml:to_iolist(Elements))).
+    AssertParses(list_to_binary(exml:to_iolist(Elements))),
+    AssertParses(list_to_binary(re:replace(exml:to_pretty_iolist(Elements), "\n\s*", "", [global]))).
