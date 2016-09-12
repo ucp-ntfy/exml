@@ -5,6 +5,8 @@
 
 -record(xmlel, {name :: binary(),
                 attrs = [] :: [exml:attr()],
-                children =  [] :: [exml:element() | exml:cdata()]}).
+                children =  [] :: [exml:element() | exml:cdata()],
+                uid = none,
+                meta = []}).
 
 -endif.
