@@ -68,5 +68,5 @@ priv/%.so: c_src/%.c
 	cc -o $@ $^ $(CFLAGS)
 
 shared_clean:
-	-rm $(SO)
-	-rm -r priv
+	-rm -f $(SO)
+	-rm -rf priv
