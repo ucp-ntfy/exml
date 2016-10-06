@@ -8,8 +8,11 @@ otp_release:
         - 19.0
         - 18.3
         - 17.5
+install:
+        - make
 script:
-        - make && make dialyzer && make test
+        - make dialyzer
+        - make test
 after_script:
         - if [ -s dialyzer/error.log ]; then cat dialyzer/error.log; fi
 
