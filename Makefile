@@ -59,7 +59,7 @@ exml_plt: dialyzer/exml.plt
 
 dialyzer: erlang_plt exml_plt
 	@dialyzer --plts dialyzer/*.plt --no_check_plt \
-	--get_warnings -o dialyzer/error.log ebin
+	--get_warnings ebin
 
 shared_libs: $(SO)
 

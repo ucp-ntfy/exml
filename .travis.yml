@@ -11,10 +11,8 @@ otp_release:
 install:
         - make
 script:
-        - make dialyzer
         - make test
-after_script:
-        - if [ -s dialyzer/error.log ]; then cat dialyzer/error.log; fi
+        - make dialyzer
 
 after_success:
         - make coverage-report
