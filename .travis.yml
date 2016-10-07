@@ -10,6 +10,7 @@ otp_release:
         - 17.5
 install:
         - make
+        - make test-compile
 script:
         - make test
         - make dialyzer
