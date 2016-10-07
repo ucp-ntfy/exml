@@ -5,18 +5,15 @@ branches:
 notifications:
         email: mongoose-im@erlang-solutions.com
 otp_release:
-        - 18.2.1
-        - 17.0
-        - R16B03
-        - R16B02
-        - R16B01
-        - R16B
-        - R15B03
-        - R15B02
+        - 19.0
+        - 18.3
+        - 17.5
+install:
+        - make
+        - make test-compile
 script:
-        - make && make dialyzer && make test
-after_script:
-        - if [ -s dialyzer/error.log ]; then cat dialyzer/error.log; fi
+        - make test
+        - make dialyzer
 
 after_success:
         - make coverage-report
