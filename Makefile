@@ -1,14 +1,4 @@
 .PHONY: rel deps test
-INCLUDE_FILES=$(shell escript tools/get_included_files_h.erl)
-CFLAGS_LINUX = -shared
-CFLAGS_DARWIN = -undefined dynamic_lookup
-CFLAGS_REST = -lexpat -fPIC
-ifeq ($(shell uname), Darwin)
-	CFLAGS = $(CFLAGS_DARWIN) $(INCLUDE_FILES) $(CFLAGS_REST)
-else
-	CFLAGS = $(CFLAGS_LINUX) $(INCLUDE_FILES) $(CFLAGS_REST)
-endif
-SO = priv/exml_event.so priv/exml_escape.so
 
 all: deps compile
 
@@ -61,12 +51,3 @@ dialyzer: erlang_plt exml_plt
 	@dialyzer --plts dialyzer/*.plt --no_check_plt \
 	--get_warnings ebin
 
-shared_libs: $(SO)
-
-priv/%.so: c_src/%.c
-	@mkdir -p priv
-	cc -o $@ $^ $(CFLAGS)
-
-shared_clean:
-	-rm -f $(SO)
-	-rm -rf priv
