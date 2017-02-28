@@ -1,10 +1,10 @@
 #ifndef EXML_ESCAPE_H
 #define EXML_ESCAPE_H
 
-#include <erl_nif.h>
-#include <string.h>
-#include <stdio.h>
 #include <assert.h>
+#include <erl_nif.h>
+#include <stdio.h>
+#include <string.h>
 
 #define EXML_CDATA_BUF_SIZE 1024
 #define EXML_ATTR_BUF_SIZE 64

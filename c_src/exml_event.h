@@ -1,14 +1,13 @@
 #ifndef EXML_EVENT_H
 #define EXML_EVENT_H
 
+#include <assert.h>
 #include <erl_nif.h>
 #include <expat.h>
-#include <assert.h>
 #include <stdio.h>
 #include <string.h>
 
-static XML_Memory_Handling_Suite ms =
-    {enif_alloc, enif_realloc, enif_free};
+static XML_Memory_Handling_Suite ms = { enif_alloc, enif_realloc, enif_free };
 
 // structure used as a private data by expat parser
 typedef struct
