@@ -6,6 +6,7 @@
 #include <expat.h>
 #include <stdio.h>
 #include <string.h>
+#include <stdbool.h>
 
 static XML_Memory_Handling_Suite ms = { enif_alloc, enif_realloc, enif_free };
 
@@ -15,6 +16,10 @@ typedef struct
     ErlNifEnv *env;
     ERL_NIF_TERM result;
     ERL_NIF_TERM xmlns;
+    long restart_from;
+    char *start_tag;
+    bool is_stream_start;
+    XML_Parser p;
 } expat_parser;
 
 // functions 'exported' by exml_event.c module
@@ -27,7 +32,7 @@ static ERL_NIF_TERM parse(ErlNifEnv *env, int argc, const ERL_NIF_TERM argv[]);
 static ERL_NIF_TERM XML_ELEMENT_START;
 static ERL_NIF_TERM XML_ELEMENT_END;
 static ERL_NIF_TERM XML_CDATA;
-static ERL_NIF_TERM XML_ELEMENT_START;
+static ERL_NIF_TERM XML_STREAM_RESET;
 static ERL_NIF_TERM OK;
 static ERL_NIF_TERM NONE;
 static ERL_NIF_TERM ERROR;

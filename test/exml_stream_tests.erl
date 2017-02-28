@@ -117,8 +117,7 @@ infinit_framed_stream_test() ->
 parse_error_test() ->
     {ok, Parser0} = exml_stream:new_parser(),
     Input = <<"top-level non-tag">>,
-    ?assertEqual({error, {"syntax error", Input}},
-                 exml_stream:parse(Parser0, Input)),
+    ?assertEqual({error, "syntax error"}, exml_stream:parse(Parser0, Input)),
     ok = exml_stream:free_parser(Parser0).
 
 assert_parses_escape_cdata(Text) ->
@@ -143,8 +142,7 @@ reset_parser_error_test() ->
 
 cdata_is_ignored_when_first_child_of_stream_test() ->
     {ok, P} = exml_stream:new_parser(),
-    {ok, _, Elements} =
-        exml_stream:parse(P, <<"<stream>hello</stream>">>),
+    {ok, _, Elements} = exml_stream:parse(P, <<"<stream>hello</stream>">>),
     ?assertMatch([#xmlstreamstart{name = <<"stream">>},
                   #xmlstreamend{name = <<"stream">>}],
                  Elements).
@@ -152,12 +150,9 @@ cdata_is_ignored_when_first_child_of_stream_test() ->
 multiple_cdata_are_joined_test() ->
     {ok, P} = exml_stream:new_parser([{infinite_stream, false},
                                       {autoreset, true}]),
-    {ok, P1, _} =
-        exml_stream:parse(P, <<"<s><a><![CDATA[hello]]>">>),
-    {ok, P2, E1} =
-        exml_stream:parse(P1, <<", world</a>">>),
-    {ok, _,  _} =
-        exml_stream:parse(P2, <<"</s>">>),
+    {ok, P1, _} = exml_stream:parse(P, <<"<s><a><![CDATA[hello]]>">>),
+    {ok, P2, E1} = exml_stream:parse(P1, <<", world</a>">>),
+    {ok, _,  _} = exml_stream:parse(P2, <<"</s>">>),
     #xmlel{children=[CData]} = hd(E1),
     ?assertEqual(<<"hello, world">>, exml:unescape_cdata(CData)).
 
@@ -184,3 +179,39 @@ conv_attr_test() ->
     AssertParses(list_to_binary(exml:to_list(Elements))),
     AssertParses(list_to_binary(exml:to_iolist(Elements))),
     AssertParses(list_to_binary(re:replace(exml:to_pretty_iolist(Elements), "\n\s*", "", [global]))).
+
+-define(RESTART_TEST_STREAM, <<"<stream:stream xmlns:stream='something'><quote/><stream:stream xmlns:stream='else'><other/><things/>">>).
+
+stream_restarts_test() ->
+    {ok, Parser0} = exml_stream:new_parser([{start_tag, <<"stream:stream">>}]),
+    {ok, _Parser1, Elements} = exml_stream:parse(Parser0, ?RESTART_TEST_STREAM),
+    ?assertMatch(
+        [#xmlstreamstart{name = <<"stream:stream">>},
+         #xmlel{name = <<"quote">>},
+         #xmlstreamstart{name = <<"stream:stream">>},
+         #xmlel{name = <<"other">>},
+         #xmlel{name = <<"things">>}],
+        Elements).
+
+stream_bad_start_tag_test() ->
+    {ok, Parser0} = exml_stream:new_parser([{start_tag, <<"stream:stream">>}]),
+    ?assertEqual({error, "invalid start tag <badstart>"},
+                 exml_stream:parse(Parser0, <<"<badstart><a/>">>)).
+
+error_on_unclosed_tags_when_stream_restarts_test() ->
+    {ok, Parser0} = exml_stream:new_parser([{start_tag, <<"start">>}]),
+    ?assertEqual({error, "unclosed tag on stream restart: <a>"},
+                 exml_stream:parse(Parser0, <<"<start><a><start>">>)).
+
+-define(RESTART_TEST_STREAM_XMLDEC, <<"<stream:stream xmlns:stream='something'><quote/>"
+                                      "<?xml version='1.0'?><stream:stream xmlns:stream='a'><other/>">>).
+
+stream_restarts_with_xml_declaration() ->
+    {ok, Parser0} = exml_stream:new_parser([{start_tag, <<"stream:stream">>}]),
+    {ok, _Parser1, Elements} = exml_stream:parse(Parser0, ?RESTART_TEST_STREAM_XMLDEC),
+    ?assertMatch(
+        [#xmlstreamstart{name = <<"stream:stream">>},
+         #xmlel{name = <<"quote">>},
+         #xmlstreamstart{name = <<"stream:stream">>},
+         #xmlel{name = <<"other">>}],
+        Elements).
