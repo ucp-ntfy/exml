@@ -202,4 +202,3 @@ escape_attr_nif(_Data) ->
 -spec unescape_attr_nif(binary()) -> binary().
 unescape_attr_nif(_Data) ->
     erlang:nif_error({?MODULE, nif_not_loaded}).
-
