@@ -206,7 +206,7 @@ error_on_unclosed_tags_when_stream_restarts_test() ->
 -define(RESTART_TEST_STREAM_XMLDEC, <<"<stream:stream xmlns:stream='something'><quote/>"
                                       "<?xml version='1.0'?><stream:stream xmlns:stream='a'><other/>">>).
 
-stream_restarts_with_xml_declaration() ->
+stream_restarts_with_xml_declaration_test() ->
     {ok, Parser0} = exml_stream:new_parser([{start_tag, <<"stream:stream">>}]),
     {ok, _Parser1, Elements} = exml_stream:parse(Parser0, ?RESTART_TEST_STREAM_XMLDEC),
     ?assertMatch(
@@ -215,3 +215,9 @@ stream_restarts_with_xml_declaration() ->
          #xmlstreamstart{name = <<"stream:stream">>},
          #xmlel{name = <<"other">>}],
         Elements).
+
+stream_max_child_size_test() ->
+    {ok, Parser0} = exml_stream:new_parser([{max_child_size, 5}]),
+    {ok, Parser1, _} = exml_stream:parse(Parser0, <<"<root><a></a>">>),
+    {ok, Parser2, _} = exml_stream:parse(Parser1, <<"<b>45</b>">>),
+    ?assertEqual({error, max_child_size_exceeded}, exml_stream:parse(Parser2, <<"<b>456</b>">>)).

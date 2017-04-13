@@ -11,6 +11,7 @@
 -export([load/0]).
 -export([new_parser/0,
          new_parser/1,
+         new_parser/2,
          reset_parser/1,
          free_parser/1,
          parse/2,
@@ -44,10 +45,14 @@ load() ->
 
 -spec new_parser() -> {ok, c_parser()}.
 new_parser() ->
+    new_parser(0).
+
+-spec new_parser(MaxChildSize :: non_neg_integer()) -> {ok, c_parser()}.
+new_parser(_MaxChildSize) ->
     erlang:nif_error(not_loaded).
 
--spec new_parser(StartTag :: binary()) -> {ok, c_parser()}.
-new_parser(_StartTag) ->
+-spec new_parser(MaxChildSize :: non_neg_integer(), StartTag :: binary()) -> {ok, c_parser()}.
+new_parser(_MaxChildSize, _StartTag) ->
     erlang:nif_error(not_loaded).
 
 -spec reset_parser(c_parser()) -> ok.

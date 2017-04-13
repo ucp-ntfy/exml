@@ -19,6 +19,9 @@ typedef struct
     long restart_from;
     char *start_tag;
     bool is_stream_start;
+    int nesting_level;
+    long tag_start;
+    int max_child_size;
     XML_Parser p;
 } expat_parser;
 
@@ -36,5 +39,6 @@ static ERL_NIF_TERM XML_STREAM_RESET;
 static ERL_NIF_TERM OK;
 static ERL_NIF_TERM NONE;
 static ERL_NIF_TERM ERROR;
+static ERL_NIF_TERM MAX_CHILD_SIZE_EXCEEDED;
 
 #endif

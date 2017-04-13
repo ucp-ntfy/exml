@@ -43,8 +43,12 @@
 %%             resetting the whole stream and notifying the caller of new xmlstreamstart. Any
 %%             unclosed tags that are not the start_tag will be treated as an error. Has no effect
 %%             if infinite_stream is true.
+%% max_child_size - specifies maximum byte size of any child of the root element. The byte size is
+%%                  counted from the start tag until the opening character of its end tag. Disabled
+%%                  if set to 0 (default).
 -type parser_property() :: infinite_stream | autoreset.
--type parser_opt() :: {parser_property(), boolean()} | {start_tag, undefined | binary()}.
+-type parser_opt() :: {parser_property(), boolean()} | {start_tag, undefined | binary()} |
+                      {max_child_size, non_neg_integer()}.
 
 %%%===================================================================
 %%% Public API
@@ -57,11 +61,12 @@ new_parser() ->
 -spec new_parser([parser_opt()]) -> {ok, parser()} | {error, any()}.
 new_parser(Opts)->
     try
+        MaxChildSize = proplists:get_value(max_child_size, Opts, 0),
         StartTag = proplists:get_value(start_tag, Opts),
         {ok, EventParser} =
             case StartTag of
-                undefined -> exml_event:new_parser();
-                _ -> exml_event:new_parser(StartTag)
+                undefined -> exml_event:new_parser(MaxChildSize);
+                _ -> exml_event:new_parser(MaxChildSize, StartTag)
             end,
 
         {ok, #parser{

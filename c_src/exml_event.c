@@ -53,12 +53,27 @@ static long get_current_byte_index(XML_Parser parser)
 
 static inline bool is_start_tag(expat_parser *parser_data, ErlNifBinary encoded_tag_name)
 {
-    return parser_data->start_tag != NULL &&
-           strncmp(parser_data->start_tag, (const char *)encoded_tag_name.data,
-                   encoded_tag_name.size) == 0;
+    return parser_data->start_tag != NULL && strncmp(parser_data->start_tag,
+                                                     (const char *)encoded_tag_name.data,
+                                                     encoded_tag_name.size) == 0;
 }
 
-static void *start_element_handler(expat_parser *parser_data, const XML_Char *name,
+static inline bool tag_too_long(expat_parser *parser_data)
+{
+    return parser_data->max_child_size > 0 &&
+           get_current_byte_index(parser_data->p) - parser_data->tag_start >
+             parser_data->max_child_size;
+}
+
+static inline void *abort_parsing(XML_Parser p)
+{
+    unset_handlers(p);
+    XML_StopParser(p, XML_FALSE);
+    return NULL;
+}
+
+static void *start_element_handler(expat_parser *parser_data,
+                                   const XML_Char *name,
                                    const XML_Char **atts)
 {
     ErlNifBinary encoded_name = encode_name(parser_data, name);
@@ -67,12 +82,19 @@ static void *start_element_handler(expat_parser *parser_data, const XML_Char *na
         {
             enif_release_binary(&encoded_name);
             parser_data->restart_from = get_current_byte_index(parser_data->p);
-            unset_handlers(parser_data->p);
-            XML_StopParser(parser_data->p, XML_FALSE);
-            return NULL;
+            return abort_parsing(parser_data->p);
         }
 
     parser_data->is_stream_start = false;
+
+    if (parser_data->nesting_level++ == 1)
+        parser_data->tag_start = get_current_byte_index(parser_data->p);
+
+    if (tag_too_long(parser_data))
+        {
+            enif_release_binary(&encoded_name);
+            return abort_parsing(parser_data->p);
+        }
 
     ERL_NIF_TERM attrs_list = enif_make_list(parser_data->env, 0);
     ERL_NIF_TERM element_name = enif_make_binary(parser_data->env, &encoded_name);
@@ -96,8 +118,8 @@ static void *start_element_handler(expat_parser *parser_data, const XML_Char *na
             attrs_list = enif_make_list_cell(parser_data->env, attr, attrs_list);
         }
 
-    ERL_NIF_TERM event = enif_make_tuple(parser_data->env, 4, XML_ELEMENT_START, element_name,
-                                         parser_data->xmlns, attrs_list);
+    ERL_NIF_TERM event = enif_make_tuple(
+      parser_data->env, 4, XML_ELEMENT_START, element_name, parser_data->xmlns, attrs_list);
     parser_data->result = enif_make_list_cell(parser_data->env, event, parser_data->result);
     parser_data->xmlns = enif_make_list(parser_data->env, 0);
 
@@ -106,6 +128,9 @@ static void *start_element_handler(expat_parser *parser_data, const XML_Char *na
 
 static void *end_element_handler(expat_parser *parser_data, const XML_Char *name)
 {
+    if (parser_data->nesting_level-- > 0 && tag_too_long(parser_data))
+        return abort_parsing(parser_data->p);
+
     ErlNifBinary encoded_name = encode_name(parser_data, name);
     ERL_NIF_TERM element_name = enif_make_binary(parser_data->env, &encoded_name);
 
@@ -119,6 +144,9 @@ static void *character_data_handler(expat_parser *parser_data, const XML_Char *s
 {
     ERL_NIF_TERM cdata;
 
+    if (tag_too_long(parser_data))
+        return abort_parsing(parser_data->p);
+
     unsigned char *cdata_data = enif_make_new_binary(parser_data->env, len, &cdata);
     strncpy((char *)cdata_data, (const char *)s, len);
 
@@ -128,10 +156,14 @@ static void *character_data_handler(expat_parser *parser_data, const XML_Char *s
     return NULL;
 };
 
-static void *namespace_decl_handler(expat_parser *parser_data, const XML_Char *prefix,
+static void *namespace_decl_handler(expat_parser *parser_data,
+                                    const XML_Char *prefix,
                                     const XML_Char *uri)
 {
     ERL_NIF_TERM ns_prefix_bin, ns_uri_bin, ns_pair;
+
+    if (tag_too_long(parser_data))
+        return abort_parsing(parser_data->p);
 
     if (uri == NULL)
         {
@@ -167,6 +199,9 @@ static void init_parser(ErlNifEnv *env, XML_Parser parser, expat_parser *parser_
     parser_data->xmlns = enif_make_list(env, 0);
     parser_data->is_stream_start = 1;
     parser_data->p = parser;
+    parser_data->tag_start = 0;
+    parser_data->nesting_level = 0;
+    parser_data->restart_from = -1;
 
     XML_SetUserData(parser, parser_data);
 
@@ -187,15 +222,18 @@ static ERL_NIF_TERM new_parser(ErlNifEnv *env, int argc, const ERL_NIF_TERM argv
 
     parser = XML_ParserCreate_MM("UTF-8", &ms, "\n");
 
-    if (argc == 0)
+    if (!enif_get_int(env, argv[0], &parser_data->max_child_size))
+        return enif_make_badarg(env);
+
+    if (argc == 1)
         {
             parser_data->start_tag = NULL;
         }
     else
         {
             ErlNifBinary start_tag_bin;
-            assert(argc == 1);
-            if (!enif_inspect_iolist_as_binary(env, argv[0], &start_tag_bin))
+            assert(argc == 2);
+            if (!enif_inspect_iolist_as_binary(env, argv[1], &start_tag_bin))
                 return enif_make_badarg(env);
 
             parser_data->start_tag = enif_alloc(start_tag_bin.size + 1);
@@ -281,9 +319,12 @@ static ERL_NIF_TERM parse(ErlNifEnv *env, int argc, const ERL_NIF_TERM argv[])
     while (1)
         {
             long start_index = get_current_byte_index(*parser);
-            res = XML_Parse(*parser, ((const char *)stream.data) + offset, stream.size - offset,
-                            is_final);
+            res = XML_Parse(
+              *parser, ((const char *)stream.data) + offset, stream.size - offset, is_final);
             errcode = XML_GetErrorCode(*parser);
+
+            if (errcode == XML_ERROR_ABORTED && parser_data->restart_from == -1)
+                return enif_make_tuple(env, 2, ERROR, MAX_CHILD_SIZE_EXCEEDED);
 
             if (parser_data->start_tag == NULL)
                 break;
@@ -313,13 +354,14 @@ static int load(ErlNifEnv *env, void **priv, ERL_NIF_TERM info)
 {
     if (sizeof(XML_Char) != sizeof(char))
         {
-            fprintf(stderr, "XML_Char is not a typedef of char; the exml library will not work "
-                            "properly. Aborting loading NIF.\r\n");
+            fprintf(stderr,
+                    "XML_Char is not a typedef of char; the exml library will not work "
+                    "properly. Aborting loading NIF.\r\n");
             return 1;
         }
 
-    PARSER_POINTER = enif_open_resource_type(env, NULL, "parser_pointer", &parser_dtor,
-                                             ERL_NIF_RT_CREATE | ERL_NIF_RT_TAKEOVER, NULL);
+    PARSER_POINTER = enif_open_resource_type(
+      env, NULL, "parser_pointer", &parser_dtor, ERL_NIF_RT_CREATE | ERL_NIF_RT_TAKEOVER, NULL);
     XML_ELEMENT_START = enif_make_atom(env, "xml_element_start");
     XML_ELEMENT_END = enif_make_atom(env, "xml_element_end");
     XML_CDATA = enif_make_atom(env, "xml_cdata");
@@ -327,6 +369,7 @@ static int load(ErlNifEnv *env, void **priv, ERL_NIF_TERM info)
     OK = enif_make_atom(env, "ok");
     NONE = enif_make_atom(env, "none");
     ERROR = enif_make_atom(env, "error");
+    MAX_CHILD_SIZE_EXCEEDED = enif_make_atom(env, "max_child_size_exceeded");
 
     return 0;
 };
@@ -346,8 +389,8 @@ static void unload(ErlNifEnv *env, void *priv)
 {
 }
 
-static ErlNifFunc funcs[] = { { "new_parser", 0, new_parser },
-                              { "new_parser", 1, new_parser },
+static ErlNifFunc funcs[] = { { "new_parser", 1, new_parser },
+                              { "new_parser", 2, new_parser },
                               { "reset_parser", 1, reset_parser },
                               { "free_parser", 1, free_parser },
                               { "parse_nif", 3, parse } };
