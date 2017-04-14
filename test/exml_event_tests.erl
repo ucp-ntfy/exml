@@ -60,9 +60,9 @@ max_child_size_test() ->
     {ok, Parser} = exml_event:new_parser(5),
     ?assertMatch({ok, _}, exml_event:parse(Parser, <<"<root><a></a>">>)),
     ?assertMatch({ok, _}, exml_event:parse(Parser, <<"<b>45</b>">>)),
-    ?assertEqual({error, max_child_size_exceeded}, exml_event:parse(Parser, <<"<b>456</b>">>)).
+    ?assertEqual({error, "child element too big"}, exml_event:parse(Parser, <<"<b>456</b>">>)).
 
 max_child_size_after_restart_test() ->
     {ok, Parser} = exml_event:new_parser(5, <<"root">>),
-    ?assertEqual({error, max_child_size_exceeded},
+    ?assertEqual({error, "child element too big"},
                  exml_event:parse(Parser, <<"<root><root><a>456</a>">>)).

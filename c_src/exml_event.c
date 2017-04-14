@@ -324,7 +324,11 @@ static ERL_NIF_TERM parse(ErlNifEnv *env, int argc, const ERL_NIF_TERM argv[])
             errcode = XML_GetErrorCode(*parser);
 
             if (errcode == XML_ERROR_ABORTED && parser_data->restart_from == -1)
-                return enif_make_tuple(env, 2, ERROR, MAX_CHILD_SIZE_EXCEEDED);
+                {
+                    ERL_NIF_TERM reason =
+                      enif_make_string(env, "child element too big", ERL_NIF_LATIN1);
+                    return enif_make_tuple(env, 2, ERROR, reason);
+                }
 
             if (parser_data->start_tag == NULL)
                 break;
@@ -369,7 +373,6 @@ static int load(ErlNifEnv *env, void **priv, ERL_NIF_TERM info)
     OK = enif_make_atom(env, "ok");
     NONE = enif_make_atom(env, "none");
     ERROR = enif_make_atom(env, "error");
-    MAX_CHILD_SIZE_EXCEEDED = enif_make_atom(env, "max_child_size_exceeded");
 
     return 0;
 };
