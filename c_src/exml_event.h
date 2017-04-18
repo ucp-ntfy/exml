@@ -19,6 +19,9 @@ typedef struct
     long restart_from;
     char *start_tag;
     bool is_stream_start;
+    int nesting_level;
+    long tag_start;
+    int max_child_size;
     XML_Parser p;
 } expat_parser;
 
