@@ -45,6 +45,25 @@ elements_query_test() ->
                 xml(<<"<problem no='3'>is too big</problem>">>)],
     ?assertEqual(Exemplar, exml_query:subelements(?MY_SPOON, <<"problem">>)).
 
+element_with_ns_query_test() ->
+    ?assertEqual(xml(<<"<received xmlns='urn:xmpp:chat-markers:0'
+                                id='0047ee62-9418-4ef8-abd8-0d08e4140b72'/>)">>),
+                 exml_query:subelement_with_ns(chat_marker(),
+                                               <<"urn:xmpp:chat-markers:0">>)).
+
+no_element_with_ns_query_test() ->
+    ?assertEqual(none,
+                 exml_query:subelement_with_ns(chat_marker(),
+                                               <<"wrong">>, none)).
+chat_marker() ->
+    Stanza =
+    <<"<message from='bOb93.499106@localhost/res1'
+                to='alicE93.499106@localhost/res1' xml:lang='en'>
+          <received xmlns='urn:xmpp:chat-markers:0'
+                    id='0047ee62-9418-4ef8-abd8-0d08e4140b72'/>
+    </message>">>,
+    xml(Stanza).
+
 attribute_query_test() ->
     ?assertEqual(<<"my">>, exml_query:attr(?MY_SPOON, <<"whose">>)),
     ?assertEqual(<<"my">>, exml_query:path(?MY_SPOON, [{attr, <<"whose">>}])),
