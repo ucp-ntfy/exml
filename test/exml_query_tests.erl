@@ -55,12 +55,36 @@ no_element_with_ns_query_test() ->
     ?assertEqual(none,
                  exml_query:subelement_with_ns(chat_marker(),
                                                <<"wrong">>, none)).
+
+elements_with_ns_query_test() ->
+    ValidResult = [
+                   xml(<<"<received xmlns='urn:xmpp:chat-markers:0'
+                                id='0047ee62-9418-4ef8-abd8-0d08e4140b72'/>)">>),
+                   xml(<<"<displayed xmlns='urn:xmpp:chat-markers:0'
+                                id='0e300615-7a77-4b5e-91c5-52d8c44149cf'/>">>)
+                  ],
+    ?assertEqual(ValidResult, exml_query:subelements_with_ns(chat_markers(),
+                                                             <<"urn:xmpp:chat-markers:0">>)).
+
 chat_marker() ->
     Stanza =
     <<"<message from='bOb93.499106@localhost/res1'
                 to='alicE93.499106@localhost/res1' xml:lang='en'>
           <received xmlns='urn:xmpp:chat-markers:0'
                     id='0047ee62-9418-4ef8-abd8-0d08e4140b72'/>
+    </message>">>,
+    xml(Stanza).
+
+%% There shouldn't be more than one chat marker in single message
+%% but hey, it's a test to verify a function, right?
+chat_markers() ->
+    Stanza =
+    <<"<message from='bOb93.499106@localhost/res1'
+                to='alicE93.499106@localhost/res1' xml:lang='en'>
+          <received xmlns='urn:xmpp:chat-markers:0'
+                    id='0047ee62-9418-4ef8-abd8-0d08e4140b72'/>
+          <displayed xmlns='urn:xmpp:chat-markers:0'
+                    id='0e300615-7a77-4b5e-91c5-52d8c44149cf'/>
     </message>">>,
     xml(Stanza).
 
