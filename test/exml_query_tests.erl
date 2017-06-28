@@ -13,9 +13,9 @@
 -compile(export_all).
 
 -define(MY_SPOON, xml(<<"<spoon whose='my'>",
-                          "<problem no='1'>is too big</problem>",
-                          "<problem no='2'>is too big</problem>",
-                          "<problem no='3'>is too big</problem>",
+                          "<problem no='1' xmlns='urn:issues'>is too big</problem>",
+                          "<problem no='2' xmlns='urn:issues'>is too big</problem>",
+                          "<problem no='3' xmlns='urn:accidents'>is too big</problem>",
                         "</spoon>">>)).
 -define (HTML, xml(<<"<html>
                           <li>
@@ -34,15 +34,15 @@
 
 element_query_test() ->
     %% we return only the first (leftmost) match
-    ?assertEqual(xml(<<"<problem no='1'>is too big</problem>">>),
+    ?assertEqual(xml(<<"<problem no='1' xmlns='urn:issues'>is too big</problem>">>),
                  exml_query:subelement(?MY_SPOON, <<"problem">>)),
-    ?assertEqual(xml(<<"<problem no='1'>is too big</problem>">>),
+    ?assertEqual(xml(<<"<problem no='1' xmlns='urn:issues'>is too big</problem>">>),
                  exml_query:path(?MY_SPOON, [{element, <<"problem">>}])).
 
 elements_query_test() ->
-    Exemplar = [xml(<<"<problem no='1'>is too big</problem>">>),
-                xml(<<"<problem no='2'>is too big</problem>">>),
-                xml(<<"<problem no='3'>is too big</problem>">>)],
+    Exemplar = [xml(<<"<problem no='1' xmlns='urn:issues'>is too big</problem>">>),
+                xml(<<"<problem no='2' xmlns='urn:issues'>is too big</problem>">>),
+                xml(<<"<problem no='3' xmlns='urn:accidents'>is too big</problem>">>)],
     ?assertEqual(Exemplar, exml_query:subelements(?MY_SPOON, <<"problem">>)).
 
 element_with_ns_query_test() ->
@@ -108,6 +108,9 @@ path_query_test() ->
     ?assertEqual(<<"1">>,
                  exml_query:path(?MY_SPOON, [{element, <<"problem">>},
                                              {attr, <<"no">>}])),
+    ?assertEqual(<<"3">>,
+                 exml_query:path(?MY_SPOON, [{element_with_ns, <<"urn:accidents">>},
+                                             {attr, <<"no">>}])),
 
     %% I couldn't find anything complex enough in that silly cartoon :[
     Qux = xml(<<"<foo><bar><baz a='b'>qux</baz></bar></foo>">>),
@@ -132,6 +135,9 @@ paths_query_test() ->
                                                cdata])),
     ?assertEqual([<<"1">>, <<"2">>, <<"3">>],
                  exml_query:paths(?MY_SPOON, [{element, <<"problem">>},
+                                              {attr, <<"no">>}])),
+    ?assertEqual([<<"1">>, <<"2">>],
+                 exml_query:paths(?MY_SPOON, [{element_with_ns, <<"urn:issues">>},
                                               {attr, <<"no">>}])),
     ?assertEqual([], exml_query:paths(?MY_SPOON, [{element, <<"banana">>}])),
     ?assertEqual([<<"My">>, <<"spoon">>, <<"is">>],
