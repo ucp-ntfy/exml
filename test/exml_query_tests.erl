@@ -13,9 +13,9 @@
 -compile(export_all).
 
 -define(MY_SPOON, xml(<<"<spoon whose='my'>",
-                          "<problem no='1'>is too big</problem>",
-                          "<problem no='2'>is too big</problem>",
-                          "<problem no='3'>is too big</problem>",
+                          "<problem no='1' xmlns='urn:issues'>is too big</problem>",
+                          "<problem no='2' xmlns='urn:issues'>is too big</problem>",
+                          "<problem no='3' xmlns='urn:accidents'>is too big</problem>",
                         "</spoon>">>)).
 -define (HTML, xml(<<"<html>
                           <li>
@@ -34,16 +34,59 @@
 
 element_query_test() ->
     %% we return only the first (leftmost) match
-    ?assertEqual(xml(<<"<problem no='1'>is too big</problem>">>),
+    ?assertEqual(xml(<<"<problem no='1' xmlns='urn:issues'>is too big</problem>">>),
                  exml_query:subelement(?MY_SPOON, <<"problem">>)),
-    ?assertEqual(xml(<<"<problem no='1'>is too big</problem>">>),
+    ?assertEqual(xml(<<"<problem no='1' xmlns='urn:issues'>is too big</problem>">>),
                  exml_query:path(?MY_SPOON, [{element, <<"problem">>}])).
 
 elements_query_test() ->
-    Exemplar = [xml(<<"<problem no='1'>is too big</problem>">>),
-                xml(<<"<problem no='2'>is too big</problem>">>),
-                xml(<<"<problem no='3'>is too big</problem>">>)],
+    Exemplar = [xml(<<"<problem no='1' xmlns='urn:issues'>is too big</problem>">>),
+                xml(<<"<problem no='2' xmlns='urn:issues'>is too big</problem>">>),
+                xml(<<"<problem no='3' xmlns='urn:accidents'>is too big</problem>">>)],
     ?assertEqual(Exemplar, exml_query:subelements(?MY_SPOON, <<"problem">>)).
+
+element_with_ns_query_test() ->
+    ?assertEqual(xml(<<"<received xmlns='urn:xmpp:chat-markers:0'
+                                id='0047ee62-9418-4ef8-abd8-0d08e4140b72'/>)">>),
+                 exml_query:subelement_with_ns(chat_marker(),
+                                               <<"urn:xmpp:chat-markers:0">>)).
+
+no_element_with_ns_query_test() ->
+    ?assertEqual(none,
+                 exml_query:subelement_with_ns(chat_marker(),
+                                               <<"wrong">>, none)).
+
+elements_with_ns_query_test() ->
+    ValidResult = [
+                   xml(<<"<received xmlns='urn:xmpp:chat-markers:0'
+                                id='0047ee62-9418-4ef8-abd8-0d08e4140b72'/>)">>),
+                   xml(<<"<displayed xmlns='urn:xmpp:chat-markers:0'
+                                id='0e300615-7a77-4b5e-91c5-52d8c44149cf'/>">>)
+                  ],
+    ?assertEqual(ValidResult, exml_query:subelements_with_ns(chat_markers(),
+                                                             <<"urn:xmpp:chat-markers:0">>)).
+
+chat_marker() ->
+    Stanza =
+    <<"<message from='bOb93.499106@localhost/res1'
+                to='alicE93.499106@localhost/res1' xml:lang='en'>
+          <received xmlns='urn:xmpp:chat-markers:0'
+                    id='0047ee62-9418-4ef8-abd8-0d08e4140b72'/>
+    </message>">>,
+    xml(Stanza).
+
+%% There shouldn't be more than one chat marker in single message
+%% but hey, it's a test to verify a function, right?
+chat_markers() ->
+    Stanza =
+    <<"<message from='bOb93.499106@localhost/res1'
+                to='alicE93.499106@localhost/res1' xml:lang='en'>
+          <received xmlns='urn:xmpp:chat-markers:0'
+                    id='0047ee62-9418-4ef8-abd8-0d08e4140b72'/>
+          <displayed xmlns='urn:xmpp:chat-markers:0'
+                    id='0e300615-7a77-4b5e-91c5-52d8c44149cf'/>
+    </message>">>,
+    xml(Stanza).
 
 attribute_query_test() ->
     ?assertEqual(<<"my">>, exml_query:attr(?MY_SPOON, <<"whose">>)),
@@ -64,6 +107,9 @@ path_query_test() ->
                  exml_query:path(?MY_SPOON, [{element, <<"problem">>}, cdata])),
     ?assertEqual(<<"1">>,
                  exml_query:path(?MY_SPOON, [{element, <<"problem">>},
+                                             {attr, <<"no">>}])),
+    ?assertEqual(<<"3">>,
+                 exml_query:path(?MY_SPOON, [{element_with_ns, <<"urn:accidents">>},
                                              {attr, <<"no">>}])),
 
     %% I couldn't find anything complex enough in that silly cartoon :[
@@ -89,6 +135,9 @@ paths_query_test() ->
                                                cdata])),
     ?assertEqual([<<"1">>, <<"2">>, <<"3">>],
                  exml_query:paths(?MY_SPOON, [{element, <<"problem">>},
+                                              {attr, <<"no">>}])),
+    ?assertEqual([<<"1">>, <<"2">>],
+                 exml_query:paths(?MY_SPOON, [{element_with_ns, <<"urn:issues">>},
                                               {attr, <<"no">>}])),
     ?assertEqual([], exml_query:paths(?MY_SPOON, [{element, <<"banana">>}])),
     ?assertEqual([<<"My">>, <<"spoon">>, <<"is">>],
