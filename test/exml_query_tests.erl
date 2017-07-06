@@ -73,6 +73,37 @@ elements_with_ns_query_test() ->
     ?assertEqual(ValidResult, exml_query:paths(chat_markers(),
                                                [{element_with_ns, <<"urn:xmpp:chat-markers:0">>}])).
 
+element_with_name_and_ns_query_test() ->
+    ValidResult = xml(<<"<displayed xmlns='urn:xmpp:chat-markers:0'
+                                id='0e300615-7a77-4b5e-91c5-52d8c44149cf'/>">>),
+    ?assertEqual(ValidResult, exml_query:subelement_with_name_and_ns(chat_markers(),
+                                                                     <<"displayed">>,
+                                                                     <<"urn:xmpp:chat-markers:0">>)),
+    ?assertEqual(ValidResult, exml_query:path(chat_markers(),
+                                              [{element_with_ns, <<"displayed">>,
+                                               <<"urn:xmpp:chat-markers:0">>}])).
+
+no_element_with_name_and_ns_query_test() ->
+    ?assertEqual(none,
+                 exml_query:subelement_with_name_and_ns(chat_marker(),
+                                                        <<"wrong">>, <<"urn:xmpp:chat-markers:0">>,
+                                                        none)),
+    ?assertEqual(none,
+                 exml_query:subelement_with_name_and_ns(chat_marker(),
+                                                        <<"received">>, <<"wrong:xmpp:chat-markers:0">>,
+                                                        none)).
+elements_with_name_and_ns_query_test() ->
+    ValidResult = [
+                   xml(<<"<item xmlns='urn:xmpp:chat-markers:0'
+                                id='0047ee62-9418-4ef8-abd8-0d08e4140b72'/>)">>),
+                   xml(<<"<item xmlns='urn:xmpp:chat-markers:0'
+                                id='0e300615-7a77-4b5e-91c5-52d8c44149cf'/>">>)
+                  ],
+    ?assertEqual(ValidResult, exml_query:subelements_with_name_and_ns(items_with_ns(), <<"item">>,
+                                                                      <<"urn:xmpp:chat-markers:0">>)),
+    ?assertEqual(ValidResult, exml_query:paths(items_with_ns(),
+                                               [{element_with_ns, <<"item">>,
+                                                 <<"urn:xmpp:chat-markers:0">>}])).
 chat_marker() ->
     Stanza =
     <<"<message from='bOb93.499106@localhost/res1'
@@ -91,6 +122,21 @@ chat_markers() ->
           <received xmlns='urn:xmpp:chat-markers:0'
                     id='0047ee62-9418-4ef8-abd8-0d08e4140b72'/>
           <displayed xmlns='urn:xmpp:chat-markers:0'
+                    id='0e300615-7a77-4b5e-91c5-52d8c44149cf'/>
+    </message>">>,
+    xml(Stanza).
+
+items_with_ns() ->
+    Stanza =
+    <<"<message from='bOb93.499106@localhost/res1'
+                to='alicE93.499106@localhost/res1' xml:lang='en'>
+          <item xmlns='urn:xmpp:chat-markers:0'
+                    id='0047ee62-9418-4ef8-abd8-0d08e4140b72'/>
+          <item xmlns='urn:xmpp:chat-markers:0'
+                    id='0e300615-7a77-4b5e-91c5-52d8c44149cf'/>
+          <item xmlns='wrong:xmpp:chat-markers:0'
+                    id='0e3urn00615-7a77-4b5e-91c5-52d8c44149cf'/>
+          <item2 xmlns='urn:xmpp:chat-markers:0'
                     id='0e300615-7a77-4b5e-91c5-52d8c44149cf'/>
     </message>">>,
     xml(Stanza).
