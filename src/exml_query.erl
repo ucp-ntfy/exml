@@ -11,13 +11,22 @@
 -export([paths/2]).
 -export([subelement/2, subelement/3]).
 -export([subelement_with_ns/2, subelement_with_ns/3]).
+-export([subelement_with_name_and_ns/3, subelement_with_name_and_ns/4]).
 -export([subelements/2]).
 -export([subelements_with_ns/2]).
+-export([subelements_with_name_and_ns/3]).
 -export([attr/2, attr/3]).
 -export([cdata/1]).
 
--type path() :: [cdata | {element, binary()} | {attr, binary()}
-                 | {element_with_ns, binary()}].
+-type element_with_ns() :: {element_with_ns, binary()}.
+-type element_with_name_and_ns () :: {element_with_ns, binary(), binary()}.
+
+-type path() :: [cdata | %% selects cdata from the element
+                 {element, binary()} | % selects subelement with given name
+                 {attr, binary()} | % selects attr of given name
+                 element_with_ns() | % selects subelement with given namespace
+                 element_with_name_and_ns() % selects subelement with given name and namespace
+                ].
 -export_type([path/0]).
 
 %% @doc gets the element/attr/cdata contained in the leftmost path
@@ -35,6 +44,9 @@ path(#xmlel{} = Element, [{element, Name} | Rest], Default) ->
 path(#xmlel{} = Element, [{element_with_ns, NS} | Rest], Default) ->
     Child = subelement_with_ns(Element, NS),
     path(Child, Rest, Default);
+path(#xmlel{} = Element, [{element_with_ns, Name, NS} | Rest], Default) ->
+    Child = subelement_with_name_and_ns(Element, Name, NS),
+    path(Child, Rest, Default);
 path(#xmlel{} = Element, [cdata], _) ->
     cdata(Element);
 path(#xmlel{} = Element, [{attr, Name}], Default) ->
@@ -51,6 +63,9 @@ paths(#xmlel{} = Element, [{element, Name} | Rest]) ->
     lists:append([paths(Child, Rest) || Child <- Children]);
 paths(#xmlel{} = Element, [{element_with_ns, NS} | Rest]) ->
     Children = subelements_with_ns(Element, NS),
+    lists:append([paths(Child, Rest) || Child <- Children]);
+paths(#xmlel{} = Element, [{element_with_ns, Name, NS} | Rest]) ->
+    Children = subelements_with_name_and_ns(Element, Name, NS),
     lists:append([paths(Child, Rest) || Child <- Children]);
 paths(#xmlel{} = Element, [cdata]) ->
     [cdata(Element)];
@@ -92,6 +107,30 @@ child_with_ns([#xmlel{} = Element | Rest], NS, Default) ->
 child_with_ns([_ | Rest], NS, Default) ->
     child_with_ns(Rest, NS, Default).
 
+
+-spec subelement_with_name_and_ns(exml:element(), binary(), binary()) ->
+    exml:element() | undefined.
+subelement_with_name_and_ns(Element, Name, NS) ->
+    subelement_with_name_and_ns(Element, Name, NS, undefined).
+
+-spec subelement_with_name_and_ns(exml:element(), binary(), binary(), Other) ->
+    exml:element() | Other.
+subelement_with_name_and_ns(Element, Name, NS, Default) ->
+    case subelement(Element, Name, undefined) of
+        undefined ->
+            Default;
+        SubElement ->
+            subelement_or_default(SubElement, NS, Default)
+    end.
+
+subelement_or_default(SubElement, NS, Default) ->
+    case attr(SubElement, <<"xmlns">>) of
+        NS ->
+            SubElement;
+        _ ->
+            Default
+    end.
+
 -spec subelements(exml:element(), binary()) -> [exml:element()].
 subelements(#xmlel{children = Children}, Name) ->
     lists:filter(fun(#xmlel{name = N}) when N =:= Name ->
@@ -104,6 +143,15 @@ subelements(#xmlel{children = Children}, Name) ->
 subelements_with_ns(#xmlel{children = Children}, NS) ->
     lists:filter(fun(#xmlel{} = Child) ->
                         NS =:= attr(Child, <<"xmlns">>);
+                    (_) ->
+                        false
+                 end, Children).
+
+-spec subelements_with_name_and_ns(exml:element(), binary(), binary()) -> [exml:element()].
+subelements_with_name_and_ns(#xmlel{children = Children}, Name, NS) ->
+    lists:filter(fun(#xmlel{name = SubName} = Child) ->
+                         SubName =:= Name andalso
+                         NS =:= attr(Child, <<"xmlns">>);
                     (_) ->
                         false
                  end, Children).
