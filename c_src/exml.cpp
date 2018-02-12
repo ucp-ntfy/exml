@@ -331,7 +331,7 @@ bool build_children(ErlNifEnv *env, xml_document &doc, ERL_NIF_TERM children,
 bool build_cdata(ErlNifEnv *env, xml_document &doc, const ERL_NIF_TERM elem[],
                  rapidxml::xml_node<unsigned char> &node) {
   ErlNifBinary bin;
-  if (!enif_inspect_binary(env, elem[1], &bin))
+  if (!enif_inspect_iolist_as_binary(env, elem[1], &bin))
     return false;
 
   auto child = doc.impl.allocate_node(rapidxml::node_data);
@@ -353,8 +353,8 @@ bool build_attrs(ErlNifEnv *env, xml_document &doc, ERL_NIF_TERM attrs,
       return false;
 
     ErlNifBinary key, value;
-    if (!enif_inspect_binary(env, tuple[0], &key) ||
-        !enif_inspect_binary(env, tuple[1], &value))
+    if (!enif_inspect_iolist_as_binary(env, tuple[0], &key) ||
+        !enif_inspect_iolist_as_binary(env, tuple[1], &value))
       return false;
 
     auto attr =
@@ -368,7 +368,7 @@ bool build_attrs(ErlNifEnv *env, xml_document &doc, ERL_NIF_TERM attrs,
 bool build_el(ErlNifEnv *env, xml_document &doc, const ERL_NIF_TERM elem[],
               rapidxml::xml_node<unsigned char> &node) {
   ErlNifBinary name;
-  if (!enif_inspect_binary(env, elem[1], &name))
+  if (!enif_inspect_iolist_as_binary(env, elem[1], &name))
     return false;
 
   auto child = doc.impl.allocate_node(rapidxml::node_element);
@@ -507,12 +507,12 @@ static ERL_NIF_TERM parse_next(ErlNifEnv *env, int argc,
   int arity;
   const ERL_NIF_TERM *tuple;
 
-  if (enif_inspect_binary(env, argv[1], &bin)) {
+  if (enif_inspect_iolist_as_binary(env, argv[1], &bin)) {
     binary_term = argv[1];
     offset = 0;
     parser->copy_buffer(bin);
   } else if (enif_get_tuple(env, argv[1], &arity, &tuple) && arity == 2 &&
-             enif_inspect_binary(env, tuple[0], &bin) &&
+             enif_inspect_iolist_as_binary(env, tuple[0], &bin) &&
              enif_get_uint64(env, tuple[1], &offset)) {
     binary_term = tuple[0];
   } else {
@@ -599,7 +599,7 @@ static ERL_NIF_TERM parse(ErlNifEnv *env, int argc, const ERL_NIF_TERM argv[]) {
   Parser parser{get_static_doc()};
   ErlNifBinary bin;
 
-  if (!enif_inspect_binary(env, argv[0], &bin))
+  if (!enif_inspect_iolist_as_binary(env, argv[0], &bin))
     return enif_make_badarg(env);
 
   parser.copy_buffer(bin);
@@ -620,7 +620,7 @@ static ERL_NIF_TERM parse(ErlNifEnv *env, int argc, const ERL_NIF_TERM argv[]) {
 static ERL_NIF_TERM escape_cdata(ErlNifEnv *env, int argc,
                                  const ERL_NIF_TERM argv[]) {
   ErlNifBinary bin;
-  if (!enif_inspect_binary(env, argv[0], &bin))
+  if (!enif_inspect_iolist_as_binary(env, argv[0], &bin))
     return enif_make_badarg(env);
 
   rapidxml::xml_node<unsigned char> node(rapidxml::node_data);

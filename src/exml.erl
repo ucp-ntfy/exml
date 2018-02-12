@@ -69,7 +69,7 @@ to_iolist(Element) ->
 to_pretty_iolist(Element) ->
     to_binary(Element, pretty).
 
--spec parse(binary()) -> {ok, exml:element()} | {error, any()}.
+-spec parse(iodata()) -> {ok, exml:element()} | {error, any()}.
 parse(XML) ->
     exml_nif:parse(XML).
 
