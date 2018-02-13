@@ -29,19 +29,11 @@
 -type element() :: exml:element() | start() | stop().
 -type parser() :: #parser{}.
 %% infinite_stream - no distinct "stream start" or "stream end", only #xmlel{} will be returned
-%% autoreset - will reset expat after each parsed document
-%%             use only when complete xml document is sent to the parser
-%%             for example XMPP over WebSocekts - http://tools.ietf.org/html/draft-ietf-xmpp-websocket
-%% start_tag - if set, the stream will reset its state after encountering the start_tag, de-facto
-%%             resetting the whole stream and notifying the caller of new xmlstreamstart. Any
-%%             unclosed tags that are not the start_tag will be treated as an error. Has no effect
-%%             if infinite_stream is true.
 %% max_child_size - specifies maximum byte size of any child of the root element. The byte size is
 %%                  counted from the start tag until the opening character of its end tag. Disabled
 %%                  if set to 0 (default).
--type parser_property() :: infinite_stream | autoreset.
--type parser_opt() :: {parser_property(), boolean()} | {start_tag, undefined | binary()} |
-                      {max_child_size, non_neg_integer()}.
+-type parser_property() :: infinite_stream.
+-type parser_opt() :: {parser_property(), boolean()} | {max_child_size, non_neg_integer()}.
 
 %%%===================================================================
 %%% Public API
@@ -53,12 +45,9 @@ new_parser() ->
 
 -spec new_parser([parser_opt()]) -> {ok, parser()} | {error, any()}.
 new_parser(Opts)->
-    {ok, EventParser} =
-        case lists:keyfind(max_child_size, 1, Opts) of
-            false -> exml_nif:create();
-            {_, Size} -> exml_nif:create(Size)
-        end,
-
+    MaxChildSize = proplists:get_value(max_child_size, Opts, 0),
+    InfiniteStream = proplists:get_value(infinite_stream, Opts, false),
+    {ok, EventParser} = exml_nif:create(MaxChildSize, InfiniteStream),
     {ok, #parser{event_parser = EventParser, buffer = <<>>}}.
 
 -spec parse(parser(), binary()) -> {ok, parser(), [exml_stream:element()]} | {error, Reason :: any()}.

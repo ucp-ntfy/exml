@@ -1,6 +1,6 @@
 -module(exml_nif).
 
--export([create/0, create/1, parse/1, parse_next/2, escape_cdata/1,
+-export([create/2, parse/1, parse_next/2, escape_cdata/1,
          to_binary/2, reset_parser/1]).
 -on_load(load/0).
 
@@ -16,10 +16,7 @@ load() ->
               end,
     erlang:load_nif(filename:join(PrivDir, ?MODULE_STRING), none).
 
-create() ->
-    erlang:nif_error(not_loaded).
-
-create(_) ->
+create(_, _) ->
     erlang:nif_error(not_loaded).
 
 escape_cdata(_Bin) ->

@@ -13,77 +13,43 @@ using ustring = std::basic_string<unsigned char>;
 
 class xml_document {
 public:
+  struct ParseResult {
+    bool eof = false;
+    bool has_error = false;
+    std::string error_message;
+    const unsigned char *rest = nullptr;
+  };
+
   template <int flags>
-  unsigned char *parse(unsigned char *text, xml_document &parent) {
+  ParseResult parse(unsigned char *text, xml_document &parent) {
     return with_error_handling(
         [&] { return impl.parse<flags>(text, parent.impl); });
   }
 
-  template <int flags> unsigned char *parse(unsigned char *text) {
+  template <int flags> ParseResult parse(unsigned char *text) {
     return with_error_handling([&] { return impl.parse<flags>(text); });
   }
 
-  const void clear() {
-    clear_error();
-    impl.clear();
-  }
-
-  static const bool has_error() { return has_error_; }
-
-  static const bool eof() { return eof_; }
-
-  static const char *error_string() { return error_string_.c_str(); }
-
-  static const unsigned char *error_where() { return where_; }
-
-  // static void parse_error_handler(const char *what, void *where) {
-  //   has_error_ = true;
-  //   error_string_ = what;
-  //   eof_ = (where && *static_cast<char *>(where) == '\0');
-  // }
+  const void clear() { impl.clear(); }
 
   rapidxml::xml_document<unsigned char> impl;
 
 private:
-  static thread_local bool has_error_;
-  static thread_local std::string error_string_;
-  static thread_local bool eof_;
-  static thread_local unsigned char *where_;
-
-  void clear_error() {
-    has_error_ = false;
-    error_string_.clear();
-    eof_ = false;
-    where_ = nullptr;
-  }
-
-  template <typename F> unsigned char *with_error_handling(F &&f) {
-    clear_error();
+  template <typename F> ParseResult with_error_handling(F &&f) {
+    ParseResult result;
     try {
-      return std::forward<F>(f)();
+      result.rest = std::forward<F>(f)();
     } catch (const rapidxml::eof_error &e) {
-      error_string_ = e.what();
-      eof_ = true;
-      where_ = e.where<unsigned char>();
+      result.eof = true;
+      result.has_error = true;
+      result.error_message = e.what();
     } catch (const rapidxml::parse_error &e) {
-      error_string_ = e.what();
-      where_ = e.where<unsigned char>();
+      result.has_error = true;
+      result.error_message = e.what();
     }
-    has_error_ = true;
-    return nullptr;
+    return result;
   }
 };
-
-thread_local bool xml_document::has_error_;
-thread_local std::string xml_document::error_string_;
-thread_local bool xml_document::eof_;
-thread_local unsigned char *xml_document::where_;
-
-// namespace rapidxml {
-// void parse_error_handler(const char *what, void *where) {
-//   ::xml_document::parse_error_handler(what, where);
-// }
-// } // namespace rapidxml
 
 namespace {
 ErlNifEnv *global_env;
@@ -96,6 +62,7 @@ ERL_NIF_TERM atom_xmlstreamstart;
 ERL_NIF_TERM atom_xmlstreamend;
 ERL_NIF_TERM atom_parsed_all;
 ERL_NIF_TERM atom_pretty;
+ERL_NIF_TERM atom_true;
 
 xml_document &get_static_doc() {
   static thread_local std::unique_ptr<xml_document> doc;
@@ -116,7 +83,8 @@ struct Parser {
   xml_document &doc;
   ustring stream_tag;
   std::vector<unsigned char> buffer;
-  std::uint64_t max_child_size = std::numeric_limits<std::uint64_t>::max();
+  std::uint64_t max_child_size = 0;
+  bool infinite_stream = false;
 
   static std::vector<ERL_NIF_TERM> &get_static_term_buf() {
     static thread_local std::vector<ERL_NIF_TERM> term_buffer;
@@ -130,8 +98,6 @@ struct Parser {
     std::copy(bin.data, bin.data + bin.size, buffer.data());
     buffer[bin.size] = '\0';
   }
-
-  void set_max_child_size(std::uint64_t m) { max_child_size = m; }
 
   void reset() {
     doc.clear();
@@ -470,6 +436,7 @@ static int load(ErlNifEnv *env, void **priv_data, ERL_NIF_TERM load_info) {
   atom_xmlstreamend = enif_make_atom(global_env, "xmlstreamend");
   atom_parsed_all = enif_make_atom(global_env, "parsed_all");
   atom_pretty = enif_make_atom(global_env, "pretty");
+  atom_true = enif_make_atom(global_env, "true");
   return 0;
 }
 
@@ -482,12 +449,12 @@ static ERL_NIF_TERM create(ErlNifEnv *env, int argc,
   void *mem = enif_alloc_resource(parser_type, sizeof(ParserWithDoc));
   Parser *parser = new (mem) ParserWithDoc;
 
-  if (argc == 1) {
-    ErlNifUInt64 max_child_size;
-    if (!enif_get_uint64(env, argv[0], &max_child_size))
-      return enif_make_badarg(env);
-    parser->set_max_child_size(static_cast<std::uint64_t>(max_child_size));
-  }
+  ErlNifUInt64 max_child_size;
+  if (!enif_get_uint64(env, argv[0], &max_child_size))
+    return enif_make_badarg(env);
+  parser->max_child_size = static_cast<std::uint64_t>(max_child_size);
+  if (enif_compare(atom_true, argv[1]) == 0)
+    parser->infinite_stream = true;
 
   ERL_NIF_TERM term = enif_make_resource(env, parser);
   enif_release_resource(parser);
@@ -526,67 +493,68 @@ static ERL_NIF_TERM parse_next(ErlNifEnv *env, int argc,
     return enif_make_badarg(env);
 
   ParseCtx ctx{env, parser};
-
-  const unsigned char *rest = nullptr;
+  xml_document::ParseResult result;
   ERL_NIF_TERM element;
 
-  if (parser->stream_tag.empty()) {
-    rest = parser->doc.parse<parse_open_only()>(parser->buffer.data() + offset);
-    if (!parser->doc.has_error()) {
+  if (parser->infinite_stream) {
+    result = parser->doc.parse<parse_one()>(parser->buffer.data() + offset);
+    element = parse_element(ctx, parser->doc.impl.first_node());
+  } else if (parser->stream_tag.empty()) {
+    result =
+        parser->doc.parse<parse_open_only()>(parser->buffer.data() + offset);
+    if (!result.has_error) {
       auto name_tag = node_name(parser->doc.impl.first_node());
       parser->stream_tag =
           ustring{std::get<0>(name_tag), std::get<1>(name_tag)};
       element = parse_stream_start(ctx, parser->doc.impl.first_node());
     }
   } else if (has_stream_closing_tag(parser, offset)) {
-    rest = reinterpret_cast<const unsigned char *>("\0");
     parser->doc.clear();
+    result.rest = reinterpret_cast<const unsigned char *>("\0");
     element = parse_stream_end(ctx);
   } else {
     xml_document &subdoc = get_static_doc();
-    rest =
+    result =
         subdoc.parse<parse_one()>(parser->buffer.data() + offset, parser->doc);
-    if (!subdoc.has_error())
+    if (!result.has_error)
       element = parse_element(ctx, subdoc.impl.first_node());
   }
 
-  bool eof = parser->doc.eof();
-  bool has_error = parser->doc.has_error();
-  std::string error_msg = parser->doc.error_string();
-
-  if (eof) {
+  if (result.eof) {
     xml_document &subdoc = get_static_doc();
-    subdoc.parse<parse_open_only()>(parser->buffer.data() + offset);
+    auto parseOpenRes =
+        subdoc.parse<parse_open_only()>(parser->buffer.data() + offset);
 
-    if (!subdoc.has_error()) {
+    if (!parseOpenRes.has_error) {
       auto tag_name = node_name(subdoc.impl.first_node());
       if (ustring{std::get<0>(tag_name), std::get<1>(tag_name)} ==
           parser->stream_tag) {
-        eof = has_error = false;
-        rest = parser->doc.parse<parse_open_only()>(parser->buffer.data() +
-                                                    offset);
+        result = parseOpenRes;
         element = parse_stream_start(ctx, parser->doc.impl.first_node());
       }
     }
   }
 
-  if (eof) {
-    if (parser->buffer.size() - offset >= parser->max_child_size)
+  if (result.eof) {
+    if (parser->max_child_size &&
+        parser->buffer.size() - offset >= parser->max_child_size)
       return enif_make_tuple2(
           env, enif_make_copy(env, atom_error),
           enif_make_string(env, "child element too big", ERL_NIF_LATIN1));
 
-    rest = parser->buffer.data() + offset;
+    result.rest = parser->buffer.data() + offset;
     element = enif_make_copy(env, atom_undefined);
-  } else if (has_error) {
+  } else if (result.has_error) {
     return enif_make_tuple2(
         env, enif_make_copy(env, atom_error),
-        enif_make_string(env, error_msg.c_str(), ERL_NIF_LATIN1));
+        enif_make_string(env, result.error_message.c_str(), ERL_NIF_LATIN1));
   }
 
-  if (*rest != '\0') {
+  if (*result.rest != '\0') {
     ERL_NIF_TERM continue_term = enif_make_tuple2(
-        env, binary_term, enif_make_uint64(env, rest - parser->buffer.data()));
+        env, binary_term,
+        enif_make_uint64(env, result.rest - parser->buffer.data()));
+
     return enif_make_tuple3(env, enif_make_copy(env, atom_ok), element,
                             continue_term);
   }
@@ -605,16 +573,16 @@ static ERL_NIF_TERM parse(ErlNifEnv *env, int argc, const ERL_NIF_TERM argv[]) {
   parser.copy_buffer(bin);
 
   ParseCtx ctx{env, &parser};
+  auto result = parser.doc.parse<default_parse_flags()>(parser.buffer.data());
 
-  parser.doc.parse<default_parse_flags()>(parser.buffer.data());
-  if (!parser.doc.has_error()) {
+  if (!result.has_error) {
     ERL_NIF_TERM element = parse_element(ctx, parser.doc.impl.first_node());
     return enif_make_tuple2(env, enif_make_copy(env, atom_ok), element);
   }
 
   return enif_make_tuple2(
       env, enif_make_copy(env, atom_error),
-      enif_make_string(env, parser.doc.error_string(), ERL_NIF_LATIN1));
+      enif_make_string(env, result.error_message.c_str(), ERL_NIF_LATIN1));
 }
 
 static ERL_NIF_TERM escape_cdata(ErlNifEnv *env, int argc,
@@ -660,13 +628,10 @@ static ERL_NIF_TERM reset_parser(ErlNifEnv *env, int argc,
   return enif_make_copy(env, atom_ok);
 }
 
-static ErlNifFunc nif_funcs[] = {{"create", 0, create},
-                                 {"create", 1, create},
-                                 {"parse", 1, parse},
-                                 {"parse_next", 2, parse_next},
-                                 {"escape_cdata", 1, escape_cdata},
-                                 {"to_binary", 2, to_binary},
-                                 {"reset_parser", 1, reset_parser}};
+static ErlNifFunc nif_funcs[] = {
+    {"create", 2, create},         {"parse", 1, parse},
+    {"parse_next", 2, parse_next}, {"escape_cdata", 1, escape_cdata},
+    {"to_binary", 2, to_binary},   {"reset_parser", 1, reset_parser}};
 }
 
 ERL_NIF_INIT(exml_nif, nif_funcs, &load, nullptr, nullptr, &unload)
