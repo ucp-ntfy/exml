@@ -91,7 +91,7 @@ struct Parser {
     return term_buffer;
   }
 
-  Parser(xml_document &doc_) : doc{doc_} { get_static_term_buf().clear(); }
+  Parser(xml_document &doc_) : doc(doc_) { get_static_term_buf().clear(); }
 
   void copy_buffer(ErlNifBinary bin) {
     buffer.resize(bin.size + 1);
@@ -260,7 +260,7 @@ parse_open_tag(ParseCtx &ctx, rapidxml::xml_node<unsigned char> *node) {
           : enif_make_list_from_array(ctx.env, attrs.data() + begin, size);
 
   attrs.erase(attrs.end() - size, attrs.end());
-  return {name_term, attrs_term};
+  return std::make_tuple(name_term, attrs_term);
 }
 
 ERL_NIF_TERM parse_stream_start(ParseCtx &ctx,
