@@ -301,7 +301,7 @@ bool build_cdata(ErlNifEnv *env, xml_document &doc, const ERL_NIF_TERM elem[],
     return false;
 
   auto child = doc.impl.allocate_node(rapidxml::node_data);
-  child->value(bin.data, bin.size);
+  child->value(bin.size > 0 ? bin.data : nullptr, bin.size);
   node.append_node(child);
   return true;
 }
@@ -323,8 +323,9 @@ bool build_attrs(ErlNifEnv *env, xml_document &doc, ERL_NIF_TERM attrs,
         !enif_inspect_iolist_as_binary(env, tuple[1], &value))
       return false;
 
-    auto attr =
-        doc.impl.allocate_attribute(key.data, value.data, key.size, value.size);
+    auto attr = doc.impl.allocate_attribute(
+        key.size > 0 ? key.data : nullptr,
+        value.size > 0 ? value.data : nullptr, key.size, value.size);
     node.append_attribute(attr);
   }
 
@@ -338,7 +339,7 @@ bool build_el(ErlNifEnv *env, xml_document &doc, const ERL_NIF_TERM elem[],
     return false;
 
   auto child = doc.impl.allocate_node(rapidxml::node_element);
-  child->name(name.data, name.size);
+  child->name(name.size > 0 ? name.data : nullptr, name.size);
   node.append_node(child);
 
   if (!build_attrs(env, doc, elem[2], *child))
