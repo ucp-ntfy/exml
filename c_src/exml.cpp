@@ -65,16 +65,17 @@ ERL_NIF_TERM atom_pretty;
 ERL_NIF_TERM atom_true;
 
 xml_document &get_static_doc() {
-  static thread_local std::unique_ptr<xml_document> doc;
+  static thread_local xml_document doc;
+  static thread_local bool initialized = false;
 
-  if (!doc) {
-    doc.reset(new xml_document);
-    doc->impl.set_allocator(enif_alloc, enif_free);
+  if (!initialized) {
+    initialized = true;
+    doc.impl.set_allocator(enif_alloc, enif_free);
   } else {
-    doc->impl.clear();
+    doc.impl.clear();
   }
 
-  return *doc;
+  return doc;
 }
 
 } // namespace
@@ -122,8 +123,7 @@ namespace {
 ErlNifResourceType *parser_type;
 
 constexpr int default_parse_flags() {
-  return rapidxml::parse_no_string_terminators |
-         rapidxml::parse_trim_whitespace;
+  return rapidxml::parse_no_string_terminators;
 }
 
 constexpr int parse_one() {
