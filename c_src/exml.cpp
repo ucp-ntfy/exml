@@ -497,10 +497,7 @@ static ERL_NIF_TERM parse_next(ErlNifEnv *env, int argc,
   xml_document::ParseResult result;
   ERL_NIF_TERM element;
 
-  if (parser->infinite_stream) {
-    result = parser->doc.parse<parse_one()>(parser->buffer.data() + offset);
-    element = parse_element(ctx, parser->doc.impl.first_node());
-  } else if (parser->stream_tag.empty()) {
+  auto parseStreamOpen = [&] {
     result =
         parser->doc.parse<parse_open_only()>(parser->buffer.data() + offset);
     if (!result.has_error) {
@@ -509,6 +506,24 @@ static ERL_NIF_TERM parse_next(ErlNifEnv *env, int argc,
           ustring{std::get<0>(name_tag), std::get<1>(name_tag)};
       element = parse_stream_start(ctx, parser->doc.impl.first_node());
     }
+  };
+
+  auto hasStreamReopen = [&] {
+    xml_document &subdoc = get_static_doc();
+    auto parseOpenRes =
+        subdoc.parse<parse_open_only()>(parser->buffer.data() + offset);
+    if (parseOpenRes.has_error)
+      return false;
+    auto tag_name = node_name(subdoc.impl.first_node());
+    return ustring{std::get<0>(tag_name), std::get<1>(tag_name)} ==
+           parser->stream_tag;
+  };
+
+  if (parser->infinite_stream) {
+    result = parser->doc.parse<parse_one()>(parser->buffer.data() + offset);
+    element = parse_element(ctx, parser->doc.impl.first_node());
+  } else if (parser->stream_tag.empty()) {
+    parseStreamOpen();
   } else if (has_stream_closing_tag(parser, offset)) {
     parser->doc.clear();
     result.rest = reinterpret_cast<const unsigned char *>("\0");
@@ -521,19 +536,9 @@ static ERL_NIF_TERM parse_next(ErlNifEnv *env, int argc,
       element = parse_element(ctx, subdoc.impl.first_node());
   }
 
-  if (result.eof) {
-    xml_document &subdoc = get_static_doc();
-    auto parseOpenRes =
-        subdoc.parse<parse_open_only()>(parser->buffer.data() + offset);
-
-    if (!parseOpenRes.has_error) {
-      auto tag_name = node_name(subdoc.impl.first_node());
-      if (ustring{std::get<0>(tag_name), std::get<1>(tag_name)} ==
-          parser->stream_tag) {
-        result = parseOpenRes;
-        element = parse_stream_start(ctx, parser->doc.impl.first_node());
-      }
-    }
+  if (result.eof && hasStreamReopen()) {
+    parser->doc.clear();
+    parseStreamOpen();
   }
 
   if (result.eof) {
