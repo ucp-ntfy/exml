@@ -128,17 +128,17 @@ namespace rapidxml
                     out = copy_chars(attribute->name(), attribute->name() + attribute->name_size(), out);
                     *out = Ch('='), ++out;
                     // Print attribute value using appropriate quote type
-                    if (find_char<Ch, Ch('"')>(attribute->value(), attribute->value() + attribute->value_size()))
-                    {
-                        *out = Ch('\''), ++out;
-                        out = copy_and_expand_chars(attribute->value(), attribute->value() + attribute->value_size(), Ch('"'), out);
-                        *out = Ch('\''), ++out;
-                    }
-                    else
+                    if (find_char<Ch, Ch('\'')>(attribute->value(), attribute->value() + attribute->value_size()))
                     {
                         *out = Ch('"'), ++out;
                         out = copy_and_expand_chars(attribute->value(), attribute->value() + attribute->value_size(), Ch('\''), out);
                         *out = Ch('"'), ++out;
+                    }
+                    else
+                    {
+                        *out = Ch('\''), ++out;
+                        out = copy_and_expand_chars(attribute->value(), attribute->value() + attribute->value_size(), Ch('"'), out);
+                        *out = Ch('\''), ++out;
                     }
                 }
             }
