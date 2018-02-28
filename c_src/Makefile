@@ -23,16 +23,16 @@ all: $(C_SRC_OUTPUT)
 UNAME_SYS := $(shell uname -s)
 ifeq ($(UNAME_SYS), Darwin)
 	# It's a bit non-standard for a Makefile but OSX users will appreciate
-	CXXFLAGS += -std=c++11 -arch x86_64 -finline-functions -Wall
+	CXXFLAGS += -arch x86_64 -finline-functions
 	LDFLAGS += -arch x86_64 -flat_namespace -undefined suppress
 else ifeq ($(UNAME_SYS), FreeBSD)
-	CXXFLAGS ?= -std=c++11 -Wall -I/usr/local/include
+	CXXFLAGS ?= -I/usr/local/include
 	LDFLAGS ?= -L/usr/local/lib
 else ifeq ($(UNAME_SYS), Linux)
-	CXXFLAGS ?= -std=c++11 -finline-functions -Wall
+	CXXFLAGS ?= -finline-functions
 endif
 
-CXXFLAGS += -fPIC -I $(ERTS_INCLUDE_DIR) -I $(ERL_INTERFACE_INCLUDE_DIR) -O3
+CXXFLAGS += -std=c++11 -Wall -fPIC -O3 -I $(ERTS_INCLUDE_DIR) -I $(ERL_INTERFACE_INCLUDE_DIR)
 LDLIBS += -L $(ERL_INTERFACE_LIB_DIR) -lerl_interface -lei
 LDFLAGS += -shared
 
