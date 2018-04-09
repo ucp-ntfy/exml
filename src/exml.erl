@@ -53,19 +53,19 @@ xml_size({Key, Value}) ->
     + 4 % ="" and whitespace before
     + byte_size(Value).
 
--spec to_list(item() | [item()]) -> string().
+-spec to_list(element() | [exml_stream:element()]) -> string().
 to_list(Element) ->
     binary_to_list(to_binary(Element)).
 
--spec to_binary(item() | [exml_stream:start() | item()]) -> binary().
+-spec to_binary(element() | [exml_stream:element()]) -> binary().
 to_binary(Element) ->
     to_binary(Element, not_pretty).
 
--spec to_iolist(item() | [exml_stream:start() | item()]) -> iolist().
+-spec to_iolist(element() | [exml_stream:element()]) -> iodata().
 to_iolist(Element) ->
     to_binary(Element, not_pretty).
 
--spec to_pretty_iolist(item() | [item()]) -> iolist().
+-spec to_pretty_iolist(element() | [exml_stream:element()]) -> iodata().
 to_pretty_iolist(Element) ->
     to_binary(Element, pretty).
 
@@ -73,7 +73,7 @@ to_pretty_iolist(Element) ->
 parse(XML) ->
     exml_nif:parse(XML).
 
--spec stream_to_xmlel([item()]) -> element().
+-spec stream_to_xmlel([exml_stream:element()]) -> element().
 stream_to_xmlel([#xmlstreamstart{name = StartTag, attrs = Attrs} | [_ | _] = Rest]) ->
     RRest = lists:reverse(Rest),
     case hd(RRest) of
@@ -85,7 +85,7 @@ stream_to_xmlel([#xmlstreamstart{name = StartTag, attrs = Attrs} | [_ | _] = Res
     Children = lists:reverse(tl(RRest)),
     #xmlel{name = StartTag, attrs = Attrs, children = Children}.
 
--spec to_binary(item() | [exml_stream:start() | item()], pretty | term()) -> binary().
+-spec to_binary(element() | [exml_stream:element()], pretty | term()) -> binary().
 to_binary([_|_] = Elements, Pretty) ->
     to_binary(stream_to_xmlel(Elements), Pretty);
 to_binary(#xmlel{} = Element, Pretty) ->

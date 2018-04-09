@@ -3,7 +3,7 @@
 
 -record(xmlcdata, {content = [] :: iodata()}).
 
--record(xmlel, {name :: iodata(),
+-record(xmlel, {name :: binary(),
                 attrs = [] :: [exml:attr()],
                 children =  [] :: [exml:element() | exml:cdata()]}).
 

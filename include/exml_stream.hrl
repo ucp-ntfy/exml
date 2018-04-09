@@ -1,6 +1,6 @@
 -include("exml.hrl").
 
--record(xmlstreamstart, {name :: iodata(),
+-record(xmlstreamstart, {name :: binary(),
                          attrs = [] :: [exml:attr()]}).
 
--record(xmlstreamend, {name :: iodata()}).
+-record(xmlstreamend, {name :: binary()}).
