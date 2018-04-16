@@ -84,9 +84,10 @@ xml_document &get_static_doc() {
 struct Parser {
   xml_document &doc;
   ustring stream_tag;
-  std::vector<unsigned char> buffer;
   std::uint64_t max_child_size = 0;
   bool infinite_stream = false;
+
+  static thread_local std::vector<unsigned char> buffer;
 
   static std::vector<ERL_NIF_TERM> &get_static_term_buf() {
     static thread_local std::vector<ERL_NIF_TERM> term_buffer;
@@ -95,10 +96,19 @@ struct Parser {
 
   Parser(xml_document &doc_) : doc(doc_) { get_static_term_buf().clear(); }
 
-  void copy_buffer(ErlNifBinary bin) {
-    buffer.resize(bin.size + 1);
-    std::copy(bin.data, bin.data + bin.size, buffer.data());
-    buffer[bin.size] = '\0';
+  void copy_buffer(ErlNifBinary bin, std::size_t offset = 0) {
+    static thread_local Parser *last_parser = nullptr;
+    if (last_parser == this && offset > 0)
+      return; // buffer already contains our data
+
+    // only copy from the offset; previous data is irrelevant
+    // we still leave it in the vector to simplify offset logic
+    // (i.e. when i >= offset then buffer[i] == bin.data[i])
+    buffer.resize(offset);
+    buffer.insert(buffer.begin() + offset, bin.data + offset,
+                  bin.data + bin.size - offset);
+    buffer.push_back('\0');
+    last_parser = this;
   }
 
   void reset() {
@@ -107,6 +117,8 @@ struct Parser {
     buffer.clear();
   }
 };
+
+thread_local std::vector<unsigned char> Parser::buffer;
 
 struct ParserWithDoc : public Parser {
   xml_document local_doc;
@@ -479,7 +491,6 @@ static ERL_NIF_TERM parse_next(ErlNifEnv *env, int argc,
   if (enif_inspect_iolist_as_binary(env, argv[1], &bin)) {
     binary_term = argv[1];
     offset = 0;
-    parser->copy_buffer(bin);
   } else if (enif_get_tuple(env, argv[1], &arity, &tuple) && arity == 2 &&
              enif_inspect_iolist_as_binary(env, tuple[0], &bin) &&
              enif_get_uint64(env, tuple[1], &offset)) {
@@ -488,11 +499,10 @@ static ERL_NIF_TERM parse_next(ErlNifEnv *env, int argc,
     return enif_make_badarg(env);
   }
 
+  parser->copy_buffer(bin, offset);
+
   while (offset < parser->buffer.size() && std::isspace(parser->buffer[offset]))
     ++offset;
-
-  if (offset >= parser->buffer.size())
-    return enif_make_badarg(env);
 
   ParseCtx ctx{env, parser};
   xml_document::ParseResult result;
