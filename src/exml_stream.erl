@@ -20,7 +20,10 @@
               parser/0,
               parser_opt/0]).
 
--record(parser, {event_parser :: exml_nif:parser(), buffer :: binary()}).
+-record(parser, {
+                 event_parser :: exml_nif:parser(),
+                 buffer :: [binary()]
+                }).
 
 -type element() :: exml_nif:stream_element().
 -type parser() :: #parser{}.
@@ -44,18 +47,19 @@ new_parser(Opts)->
     InfiniteStream = proplists:get_value(infinite_stream, Opts, false),
     case exml_nif:create(MaxChildSize, InfiniteStream) of
         {ok, EventParser} ->
-            {ok, #parser{event_parser = EventParser, buffer = <<>>}};
+            {ok, #parser{event_parser = EventParser, buffer = []}};
         Error ->
             Error
     end.
 
--spec parse(parser(), binary()) -> {ok, parser(), [exml_stream:element()]} | {error, Reason :: any()}.
+-spec parse(parser(), binary()) -> {ok, parser(), [exml_stream:element()]}
+                                       | {error, Reason :: any()}.
 parse(Parser, Input) when is_binary(Input) ->
     #parser{event_parser = EventParser, buffer = OldBuf} = Parser,
-    Buffer = <<OldBuf/binary, Input/binary>>,
+    Buffer = OldBuf ++ [Input],
     case parse_all(EventParser, Buffer, []) of
-        {ok, Elems, RestBuffer} ->
-            {ok, Parser#parser{buffer = RestBuffer}, Elems};
+        {ok, Elems, NewBuffer} ->
+            {ok, Parser#parser{buffer = NewBuffer}, Elems};
         Other ->
             Other
     end.
@@ -63,7 +67,7 @@ parse(Parser, Input) when is_binary(Input) ->
 -spec reset_parser(parser()) -> {ok, parser()}.
 reset_parser(#parser{event_parser = NifParser} = Parser) ->
     exml_nif:reset_parser(NifParser),
-    {ok, Parser#parser{buffer = <<>>}}.
+    {ok, Parser#parser{buffer = []}}.
 
 -spec free_parser(parser()) -> ok.
 free_parser(#parser{}) ->
@@ -73,16 +77,23 @@ free_parser(#parser{}) ->
 %%% Helpers
 %%%===================================================================
 
+parse_all(_Parser, [], Acc) ->
+    {ok, lists:reverse(Acc), []};
 parse_all(Parser, Buffer, Acc) ->
-    case exml_nif:parse_next(Parser, Buffer) of
-        {ok, undefined, {B, Offset}} ->
-            {ok, lists:reverse(Acc), binary_part(B, Offset, byte_size(B) - Offset)};
-        {ok, undefined, parsed_all} ->
-            {ok, lists:reverse(Acc), <<>>};
-        {ok, Element, parsed_all} ->
-            {ok, lists:reverse([Element | Acc]), <<>>};
-        {ok, Element, Continue} ->
-            parse_all(Parser, Continue, [Element | Acc]);
+    Val = exml_nif:parse_next(Parser, Buffer),
+    case Val of
+        {ok, undefined, Offset} ->
+            {ok, lists:reverse(Acc), drop_offset(Buffer, Offset)};
+        {ok, Element, Offset} ->
+            parse_all(Parser, drop_offset(Buffer, Offset), [Element | Acc]);
         {error, _} = Error ->
             Error
     end.
+
+drop_offset(Buffer, 0) ->
+    Buffer;
+drop_offset([Front | Rest], Offset) when byte_size(Front) =< Offset ->
+    drop_offset(Rest, Offset - byte_size(Front));
+drop_offset([Front | Rest], Offset) ->
+    <<_:Offset/binary, Part/binary>> = Front,
+    [Part | Rest].

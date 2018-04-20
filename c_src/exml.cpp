@@ -60,7 +60,6 @@ ERL_NIF_TERM atom_xmlel;
 ERL_NIF_TERM atom_xmlcdata;
 ERL_NIF_TERM atom_xmlstreamstart;
 ERL_NIF_TERM atom_xmlstreamend;
-ERL_NIF_TERM atom_parsed_all;
 ERL_NIF_TERM atom_pretty;
 ERL_NIF_TERM atom_true;
 constexpr const unsigned char EMPTY[1] = {0};
@@ -96,19 +95,25 @@ struct Parser {
 
   Parser(xml_document &doc_) : doc(doc_) { get_static_term_buf().clear(); }
 
-  void copy_buffer(ErlNifBinary bin, std::size_t offset = 0) {
-    static thread_local Parser *last_parser = nullptr;
-    if (last_parser == this && offset > 0)
-      return; // buffer already contains our data
+  bool copy_buffer(ErlNifEnv *env, ERL_NIF_TERM buf) {
+    buffer.clear();
 
-    // only copy from the offset; previous data is irrelevant
-    // we still leave it in the vector to simplify offset logic
-    // (i.e. when i >= offset then buffer[i] == bin.data[i])
-    buffer.resize(offset);
-    buffer.insert(buffer.begin() + offset, bin.data + offset,
-                  bin.data + bin.size - offset);
+    ErlNifBinary bin;
+    if (enif_inspect_binary(env, buf, &bin)) {
+      buffer.insert(buffer.end(), bin.data, bin.data + bin.size);
+    } else if (enif_is_list(env, buf)) {
+      for (ERL_NIF_TERM head; enif_get_list_cell(env, buf, &head, &buf);) {
+        if (!enif_inspect_binary(env, head, &bin))
+          return false;
+
+        buffer.insert(buffer.end(), bin.data, bin.data + bin.size);
+      }
+    } else {
+      return false;
+    }
+
     buffer.push_back('\0');
-    last_parser = this;
+    return true;
   }
 
   void reset() {
@@ -427,7 +432,13 @@ bool has_stream_closing_tag(Parser *parser, std::size_t offset) {
                   parser->buffer.begin() + offset + 2))
     return false;
 
-  return parser->buffer[offset + 2 + parser->stream_tag.size()] == '>';
+  // skip whitespace between tag name and closing '>'
+  offset = offset + 2 + parser->stream_tag.size();
+  while (offset < parser->buffer.size() - 1 &&
+         std::isspace(parser->buffer[offset]))
+    ++offset;
+
+  return parser->buffer[offset] == '>';
 }
 
 } // namespace
@@ -448,7 +459,6 @@ static int load(ErlNifEnv *env, void **priv_data, ERL_NIF_TERM load_info) {
   atom_xmlcdata = enif_make_atom(global_env, "xmlcdata");
   atom_xmlstreamstart = enif_make_atom(global_env, "xmlstreamstart");
   atom_xmlstreamend = enif_make_atom(global_env, "xmlstreamend");
-  atom_parsed_all = enif_make_atom(global_env, "parsed_all");
   atom_pretty = enif_make_atom(global_env, "pretty");
   atom_true = enif_make_atom(global_env, "true");
   return 0;
@@ -482,26 +492,14 @@ static ERL_NIF_TERM parse_next(ErlNifEnv *env, int argc,
                          reinterpret_cast<void **>(&parser)))
     return enif_make_badarg(env);
 
-  ERL_NIF_TERM binary_term;
-  ErlNifBinary bin;
-  std::size_t offset;
-  int arity;
-  const ERL_NIF_TERM *tuple;
-
-  if (enif_inspect_iolist_as_binary(env, argv[1], &bin)) {
-    binary_term = argv[1];
-    offset = 0;
-  } else if (enif_get_tuple(env, argv[1], &arity, &tuple) && arity == 2 &&
-             enif_inspect_iolist_as_binary(env, tuple[0], &bin) &&
-             enif_get_uint64(env, tuple[1], &offset)) {
-    binary_term = tuple[0];
-  } else {
+  if (!parser->copy_buffer(env, argv[1]))
     return enif_make_badarg(env);
-  }
 
-  parser->copy_buffer(bin, offset);
-
-  while (offset < parser->buffer.size() && std::isspace(parser->buffer[offset]))
+  // Skip initial whitespace even if we don't manage to parse anything.
+  // Also needed for has_stream_closing_tag to recognize the tag.
+  std::size_t offset = 0;
+  while (offset < parser->buffer.size() - 1 &&
+         std::isspace(parser->buffer[offset]))
     ++offset;
 
   ParseCtx ctx{env, parser};
@@ -537,7 +535,8 @@ static ERL_NIF_TERM parse_next(ErlNifEnv *env, int argc,
     parseStreamOpen();
   } else if (has_stream_closing_tag(parser, offset)) {
     parser->doc.clear();
-    result.rest = reinterpret_cast<const unsigned char *>("\0");
+    // no data after closing tag
+    result.rest = &*parser->buffer.rbegin();
     element = make_stream_end_tuple(ctx);
   } else {
     xml_document &subdoc = get_static_doc();
@@ -567,27 +566,14 @@ static ERL_NIF_TERM parse_next(ErlNifEnv *env, int argc,
         enif_make_string(env, result.error_message.c_str(), ERL_NIF_LATIN1));
   }
 
-  if (*result.rest != '\0') {
-    ERL_NIF_TERM continue_term = enif_make_tuple2(
-        env, binary_term,
-        enif_make_uint64(env, result.rest - parser->buffer.data()));
-
-    return enif_make_tuple3(env, enif_make_copy(env, atom_ok), element,
-                            continue_term);
-  }
-
-  return enif_make_tuple3(env, enif_make_copy(env, atom_ok), element,
-                          enif_make_copy(env, atom_parsed_all));
+  return enif_make_tuple3(
+      env, enif_make_copy(env, atom_ok), element,
+      enif_make_uint64(env, result.rest - parser->buffer.data()));
 }
 
 static ERL_NIF_TERM parse(ErlNifEnv *env, int argc, const ERL_NIF_TERM argv[]) {
   Parser parser{get_static_doc()};
-  ErlNifBinary bin;
-
-  if (!enif_inspect_iolist_as_binary(env, argv[0], &bin))
-    return enif_make_badarg(env);
-
-  parser.copy_buffer(bin);
+  parser.copy_buffer(env, argv[0]);
 
   ParseCtx ctx{env, &parser};
   auto result = parser.doc.parse<default_parse_flags()>(parser.buffer.data());

@@ -10,11 +10,10 @@
 
 -type parser() :: term().
 -type stream_element() :: exml:element() | exml_stream:start() | exml_stream:stop().
--type continue_term() :: {Data :: binary(), Offset :: non_neg_integer()}.
 
 -export([create/2, parse/1, parse_next/2, escape_cdata/1,
          to_binary/2, reset_parser/1]).
--export_type([parser/0, continue_term/0]).
+-export_type([parser/0]).
 
 -on_load(load/0).
 
@@ -47,12 +46,12 @@ escape_cdata(_Bin) ->
 to_binary(_Elem, _Pretty) ->
     erlang:nif_error(not_loaded).
 
--spec parse(Bin :: iodata()) -> {ok, exml:element()} | {error, Reason :: any()}.
+-spec parse(Bin :: binary() | [binary()]) -> {ok, exml:element()} | {error, Reason :: any()}.
 parse(_) ->
     erlang:nif_error(not_loaded).
 
--spec parse_next(parser(), Data :: iodata() | continue_term()) ->
-                        {ok, stream_element() | undefined, continue_term() | parsed_all} |
+-spec parse_next(parser(), Data :: binary() | [binary()]) ->
+                        {ok, stream_element() | undefined, non_neg_integer()} |
                         {error, Reason :: any()}.
 parse_next(_, _) ->
     erlang:nif_error(not_loaded).
