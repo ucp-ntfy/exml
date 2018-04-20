@@ -1,3 +1,6 @@
+#define RAPIDXML_STATIC_POOL_SIZE (10 * 1024 * 1024)
+#define RAPIDXML_DYNAMIC_POOL_SIZE (2 * 1024 * 1024)
+
 #include "rapidxml.hpp"
 #include "rapidxml_print.hpp"
 #include <erl_nif.h>
@@ -66,34 +69,19 @@ constexpr const unsigned char EMPTY[1] = {0};
 
 xml_document &get_static_doc() {
   static thread_local xml_document doc;
-  static thread_local bool initialized = false;
-
-  if (!initialized) {
-    initialized = true;
-    doc.impl.set_allocator(enif_alloc, enif_free);
-  } else {
-    doc.impl.clear();
-  }
-
+  doc.impl.clear();
   return doc;
 }
 
 } // namespace
 
 struct Parser {
-  xml_document &doc;
   ustring stream_tag;
   std::uint64_t max_child_size = 0;
   bool infinite_stream = false;
 
   static thread_local std::vector<unsigned char> buffer;
-
-  static std::vector<ERL_NIF_TERM> &get_static_term_buf() {
-    static thread_local std::vector<ERL_NIF_TERM> term_buffer;
-    return term_buffer;
-  }
-
-  Parser(xml_document &doc_) : doc(doc_) { get_static_term_buf().clear(); }
+  static thread_local std::vector<ERL_NIF_TERM> term_buffer;
 
   bool copy_buffer(ErlNifEnv *env, ERL_NIF_TERM buf) {
     buffer.clear();
@@ -117,20 +105,13 @@ struct Parser {
   }
 
   void reset() {
-    doc.clear();
     stream_tag.clear();
     buffer.clear();
   }
 };
 
 thread_local std::vector<unsigned char> Parser::buffer;
-
-struct ParserWithDoc : public Parser {
-  xml_document local_doc;
-  ParserWithDoc() : Parser{local_doc} {
-    doc.impl.set_allocator(enif_alloc, enif_free);
-  }
-};
+thread_local std::vector<ERL_NIF_TERM> Parser::term_buffer;
 
 struct ParseCtx {
   ErlNifEnv *env;
@@ -205,7 +186,7 @@ ERL_NIF_TERM make_xmlel(ParseCtx &ctx, rapidxml::xml_node<unsigned char> *node);
 
 ERL_NIF_TERM get_children_tuple(ParseCtx &ctx,
                                 rapidxml::xml_node<unsigned char> *node) {
-  std::vector<ERL_NIF_TERM> &children = ctx.parser->get_static_term_buf();
+  std::vector<ERL_NIF_TERM> &children = Parser::term_buffer;
   std::size_t begin = children.size();
 
   rapidxml::xml_node<unsigned char> *first_data_node = nullptr;
@@ -263,7 +244,7 @@ ERL_NIF_TERM make_node_name_binary(ParseCtx &ctx,
 std::tuple<ERL_NIF_TERM, ERL_NIF_TERM>
 get_open_tag(ParseCtx &ctx, rapidxml::xml_node<unsigned char> *node) {
   ERL_NIF_TERM name_term = make_node_name_binary(ctx, node);
-  std::vector<ERL_NIF_TERM> &attrs = ctx.parser->get_static_term_buf();
+  std::vector<ERL_NIF_TERM> &attrs = Parser::term_buffer;
   std::size_t begin = attrs.size();
 
   for (rapidxml::xml_attribute<unsigned char> *attr = node->first_attribute();
@@ -422,30 +403,30 @@ std::size_t stream_closing_tag_size(Parser *parser) {
 }
 
 bool has_stream_closing_tag(Parser *parser, std::size_t offset) {
-  if (parser->buffer.size() < offset + stream_closing_tag_size(parser))
+  if (Parser::buffer.size() < offset + stream_closing_tag_size(parser))
     return false;
 
-  if (parser->buffer[offset] != '<' || parser->buffer[offset + 1] != '/')
+  if (Parser::buffer[offset] != '<' || Parser::buffer[offset + 1] != '/')
     return false;
 
   if (!std::equal(parser->stream_tag.begin(), parser->stream_tag.end(),
-                  parser->buffer.begin() + offset + 2))
+                  Parser::buffer.begin() + offset + 2))
     return false;
 
   // skip whitespace between tag name and closing '>'
   offset = offset + 2 + parser->stream_tag.size();
-  while (offset < parser->buffer.size() - 1 &&
-         std::isspace(parser->buffer[offset]))
+  while (offset < Parser::buffer.size() - 1 &&
+         std::isspace(Parser::buffer[offset]))
     ++offset;
 
-  return parser->buffer[offset] == '>';
+  return Parser::buffer[offset] == '>';
 }
 
 } // namespace
 
 extern "C" {
 static void delete_parser(ErlNifEnv *env, void *parser) {
-  static_cast<ParserWithDoc *>(parser)->~ParserWithDoc();
+  static_cast<Parser *>(parser)->~Parser();
 }
 
 static int load(ErlNifEnv *env, void **priv_data, ERL_NIF_TERM load_info) {
@@ -461,6 +442,9 @@ static int load(ErlNifEnv *env, void **priv_data, ERL_NIF_TERM load_info) {
   atom_xmlstreamend = enif_make_atom(global_env, "xmlstreamend");
   atom_pretty = enif_make_atom(global_env, "pretty");
   atom_true = enif_make_atom(global_env, "true");
+
+  get_static_doc().impl.set_allocator(enif_alloc, enif_free);
+
   return 0;
 }
 
@@ -470,8 +454,8 @@ static void unload(ErlNifEnv *env, void *priv_data) {
 
 static ERL_NIF_TERM create(ErlNifEnv *env, int argc,
                            const ERL_NIF_TERM argv[]) {
-  void *mem = enif_alloc_resource(parser_type, sizeof(ParserWithDoc));
-  Parser *parser = new (mem) ParserWithDoc;
+  void *mem = enif_alloc_resource(parser_type, sizeof(Parser));
+  Parser *parser = new (mem) Parser;
 
   ErlNifUInt64 max_child_size;
   if (!enif_get_uint64(env, argv[0], &max_child_size))
@@ -498,67 +482,66 @@ static ERL_NIF_TERM parse_next(ErlNifEnv *env, int argc,
   // Skip initial whitespace even if we don't manage to parse anything.
   // Also needed for has_stream_closing_tag to recognize the tag.
   std::size_t offset = 0;
-  while (offset < parser->buffer.size() - 1 &&
-         std::isspace(parser->buffer[offset]))
+  while (offset < Parser::buffer.size() - 1 &&
+         std::isspace(Parser::buffer[offset]))
     ++offset;
 
   ParseCtx ctx{env, parser};
   xml_document::ParseResult result;
   ERL_NIF_TERM element;
 
+  xml_document &doc = get_static_doc();
+  Parser::term_buffer.clear();
+
   auto parseStreamOpen = [&] {
-    result =
-        parser->doc.parse<parse_open_only()>(parser->buffer.data() + offset);
+    result = doc.parse<parse_open_only()>(Parser::buffer.data() + offset);
     if (!result.has_error) {
-      auto name_tag = node_name(parser->doc.impl.first_node());
+      auto name_tag = node_name(doc.impl.first_node());
       parser->stream_tag =
           ustring{std::get<0>(name_tag), std::get<1>(name_tag)};
-      element = make_stream_start_tuple(ctx, parser->doc.impl.first_node());
+      element = make_stream_start_tuple(ctx, doc.impl.first_node());
     }
   };
 
   auto hasStreamReopen = [&] {
-    xml_document &subdoc = get_static_doc();
     auto parseOpenRes =
-        subdoc.parse<parse_open_only()>(parser->buffer.data() + offset);
+        doc.parse<parse_open_only()>(Parser::buffer.data() + offset);
     if (parseOpenRes.has_error)
       return false;
-    auto tag_name = node_name(subdoc.impl.first_node());
+    auto tag_name = node_name(doc.impl.first_node());
     return ustring{std::get<0>(tag_name), std::get<1>(tag_name)} ==
            parser->stream_tag;
   };
 
   if (parser->infinite_stream) {
-    result = parser->doc.parse<parse_one()>(parser->buffer.data() + offset);
-    element = make_xmlel(ctx, parser->doc.impl.first_node());
+    result = doc.parse<parse_one()>(Parser::buffer.data() + offset);
+    element = make_xmlel(ctx, doc.impl.first_node());
   } else if (parser->stream_tag.empty()) {
     parseStreamOpen();
   } else if (has_stream_closing_tag(parser, offset)) {
-    parser->doc.clear();
+    doc.clear();
     // no data after closing tag
-    result.rest = &*parser->buffer.rbegin();
+    result.rest = &*Parser::buffer.rbegin();
     element = make_stream_end_tuple(ctx);
   } else {
-    xml_document &subdoc = get_static_doc();
-    result =
-        subdoc.parse<parse_one()>(parser->buffer.data() + offset, parser->doc);
+    result = doc.parse<parse_one()>(Parser::buffer.data() + offset);
     if (!result.has_error)
-      element = make_xmlel(ctx, subdoc.impl.first_node());
+      element = make_xmlel(ctx, doc.impl.first_node());
   }
 
   if (result.eof && hasStreamReopen()) {
-    parser->doc.clear();
+    doc.clear();
     parseStreamOpen();
   }
 
   if (result.eof) {
     if (parser->max_child_size &&
-        parser->buffer.size() - offset >= parser->max_child_size)
+        Parser::buffer.size() - offset >= parser->max_child_size)
       return enif_make_tuple2(
           env, enif_make_copy(env, atom_error),
           enif_make_string(env, "child element too big", ERL_NIF_LATIN1));
 
-    result.rest = parser->buffer.data() + offset;
+    result.rest = Parser::buffer.data() + offset;
     element = enif_make_copy(env, atom_undefined);
   } else if (result.has_error) {
     return enif_make_tuple2(
@@ -568,18 +551,21 @@ static ERL_NIF_TERM parse_next(ErlNifEnv *env, int argc,
 
   return enif_make_tuple3(
       env, enif_make_copy(env, atom_ok), element,
-      enif_make_uint64(env, result.rest - parser->buffer.data()));
+      enif_make_uint64(env, result.rest - Parser::buffer.data()));
 }
 
 static ERL_NIF_TERM parse(ErlNifEnv *env, int argc, const ERL_NIF_TERM argv[]) {
-  Parser parser{get_static_doc()};
+  Parser parser;
   parser.copy_buffer(env, argv[0]);
+  Parser::term_buffer.clear();
+
+  auto &doc = get_static_doc();
 
   ParseCtx ctx{env, &parser};
-  auto result = parser.doc.parse<default_parse_flags()>(parser.buffer.data());
+  auto result = doc.parse<default_parse_flags()>(Parser::buffer.data());
 
   if (!result.has_error) {
-    ERL_NIF_TERM element = make_xmlel(ctx, parser.doc.impl.first_node());
+    ERL_NIF_TERM element = make_xmlel(ctx, doc.impl.first_node());
     return enif_make_tuple2(env, enif_make_copy(env, atom_ok), element);
   }
 
