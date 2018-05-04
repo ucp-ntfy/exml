@@ -1,3 +1,9 @@
+# [3.0.0] 2018-05-04
+
+## Changed
+
+* Replaced expat with RapidXML
+
 # [2.5.0] 2018-05-04
 
 ## Added
