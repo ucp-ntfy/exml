@@ -61,6 +61,42 @@ no_element_with_ns_query_test() ->
                  exml_query:subelement_with_ns(chat_marker(),
                                                <<"wrong">>, none)).
 
+element_with_attr_query_test() ->
+    ?assertEqual(xml(<<"<received xmlns='urn:xmpp:chat-markers:0'
+                                id='0047ee62-9418-4ef8-abd8-0d08e4140b72'/>">>),
+                 exml_query:subelement_with_attr(chat_marker(), <<"xmlns">>,
+                                                 <<"urn:xmpp:chat-markers:0">>)),
+
+    ?assertEqual(xml(<<"<received xmlns='urn:xmpp:chat-markers:0'
+                                id='0047ee62-9418-4ef8-abd8-0d08e4140b72'/>">>),
+                 exml_query:path(chat_marker(), [{element_with_attr, <<"xmlns">>,
+                                                  <<"urn:xmpp:chat-markers:0">>}])).
+element_with_attr_query_returns_first_match_test() ->
+    ?assertEqual(xml(<<"<received xmlns='urn:xmpp:chat-markers:0'
+                                id='0047ee62-9418-4ef8-abd8-0d08e4140b72'/>">>),
+                 exml_query:subelement_with_attr(chat_markers(), <<"xmlns">>,
+                                                 <<"urn:xmpp:chat-markers:0">>)),
+
+    ?assertEqual(xml(<<"<received xmlns='urn:xmpp:chat-markers:0'
+                                id='0047ee62-9418-4ef8-abd8-0d08e4140b72'/>">>),
+                 exml_query:path(chat_markers(), [{element_with_attr, <<"xmlns">>,
+                                                  <<"urn:xmpp:chat-markers:0">>}])).
+
+element_with_attr_query_returns_first_match_by_id_test() ->
+    ?assertEqual(xml(<<"<displayed xmlns='urn:xmpp:chat-markers:0'
+                                id='0e300615-7a77-4b5e-91c5-52d8c44149cf'/>">>),
+                 exml_query:subelement_with_attr(chat_markers(), <<"id">>,
+                                                 <<"0e300615-7a77-4b5e-91c5-52d8c44149cf">>)),
+
+    ?assertEqual(xml(<<"<displayed xmlns='urn:xmpp:chat-markers:0'
+                                id='0e300615-7a77-4b5e-91c5-52d8c44149cf'/>">>),
+                 exml_query:path(chat_markers(), [{element_with_attr, <<"id">>,
+                                                  <<"0e300615-7a77-4b5e-91c5-52d8c44149cf">>}])).
+
+no_element_with_attr_query_test() ->
+    ?assertEqual(none,
+                 exml_query:subelement_with_attr(chat_marker(),
+                                                 <<"xmlns">>, <<"wrong">>, none)).
 elements_with_ns_query_test() ->
     ValidResult = [
                    xml(<<"<received xmlns='urn:xmpp:chat-markers:0'
@@ -72,6 +108,18 @@ elements_with_ns_query_test() ->
                                                              <<"urn:xmpp:chat-markers:0">>)),
     ?assertEqual(ValidResult, exml_query:paths(chat_markers(),
                                                [{element_with_ns, <<"urn:xmpp:chat-markers:0">>}])).
+
+elements_with_attr_query_test() ->
+    ValidResult = [
+                   xml(<<"<received xmlns='urn:xmpp:chat-markers:0'
+                                id='0047ee62-9418-4ef8-abd8-0d08e4140b72'/>">>),
+                   xml(<<"<displayed xmlns='urn:xmpp:chat-markers:0'
+                                id='0e300615-7a77-4b5e-91c5-52d8c44149cf'/>">>)
+                  ],
+    ?assertEqual(ValidResult, exml_query:subelements_with_attr(chat_markers(), <<"xmlns">>,
+                                                               <<"urn:xmpp:chat-markers:0">>)),
+    ?assertEqual(ValidResult, exml_query:paths(chat_markers(),
+                                               [{element_with_attr, <<"xmlns">>, <<"urn:xmpp:chat-markers:0">>}])).
 
 element_with_name_and_ns_query_test() ->
     ValidResult = xml(<<"<displayed xmlns='urn:xmpp:chat-markers:0'
