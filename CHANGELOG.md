@@ -1,3 +1,15 @@
+# [3.0.1] 2018-05-22
+
+## Fixed
+
+* Workaround to `enif_inspect_binary` returning corrupted data #36
+* Allow to encode other stream elements like `streamstart` and `streamend` #34
+
+## Added
+
+* New API to query elements with specific attribute - #31
+  This includes path queries as well.
+
 # [3.0.0] 2018-05-04
 
 ## Changed
