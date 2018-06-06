@@ -14,9 +14,6 @@ clean: rebar
 test: compile
 	./rebar skip_deps=true eunit
 
-rebar:
-	wget https://github.com/rebar/rebar/releases/download/2.5.1/rebar && chmod u+x rebar
-
 dialyzer/erlang.plt:
 	@mkdir -p dialyzer
 	@dialyzer --build_plt --output_plt dialyzer/erlang.plt \
